@@ -1,6 +1,9 @@
 // All sound is synthesized with WebAudio: no audio files, nothing fetched.
 // Engine hum, sirens, gunshots, pickups, jingles and a small bass-driven
-// music loop, all built from oscillators and filtered noise.
+// music loop, all built from oscillators and filtered noise. C cycles three
+// radio stations, each its own bass line and tempo.
+
+import { RADIO_STATIONS } from './config.js';
 
 export function createAudio() {
   let ctx = null;
@@ -13,6 +16,7 @@ export function createAudio() {
   let musicOn = false;
   let muted = false;
   let step = 0;
+  let station = 0; // index into RADIO_STATIONS
 
   function ensure() {
     if (ctx) return true;
@@ -70,16 +74,21 @@ export function createAudio() {
     src.start(t);
   }
 
-  // A tiny 8-step bass + hat loop, 112 BPM, minor-key sunset groove.
-  const BASS = [55, 0, 55, 65.41, 55, 0, 49, 58.27];
+  // The current station's 8-step bass + hat loop; C moves to the next one.
   function musicTick() {
     if (!musicOn || !ctx || muted) return;
+    const st = RADIO_STATIONS[station];
     const s = step % 8;
-    const f = BASS[s];
+    const f = st.bass[s];
     if (f) blip(f, 0.32, 'triangle', 0.16);
+    const lead = st.lead[s];
+    if (lead) blip(lead, 0.18, 'sine', 0.05);
     if (s % 2 === 0) noiseBurst(0.03, 0.05, 6000);
-    if (s === 0 || s === 4) blip(220, 0.1, 'sine', 0.05, 330);
     step += 1;
+  }
+
+  function stationInterval() {
+    return Math.round(60000 / RADIO_STATIONS[station].bpm / 2);
   }
 
   return {
@@ -95,12 +104,27 @@ export function createAudio() {
     startMusic() {
       if (!ensure() || musicTimer) return;
       musicOn = true;
-      musicTimer = window.setInterval(musicTick, 268); // ~112 BPM eighth notes
+      musicTimer = window.setInterval(musicTick, stationInterval());
     },
     stopMusic() {
       musicOn = false;
       if (musicTimer) window.clearInterval(musicTimer);
       musicTimer = null;
+    },
+    // Cycle the radio; returns the station name for the HUD.
+    cycleRadio() {
+      station = (station + 1) % RADIO_STATIONS.length;
+      if (musicTimer) {
+        window.clearInterval(musicTimer);
+        musicTimer = window.setInterval(musicTick, stationInterval());
+      }
+      return RADIO_STATIONS[station].name;
+    },
+    get radioName() {
+      return RADIO_STATIONS[station].name;
+    },
+    setStation(i) {
+      station = ((i % RADIO_STATIONS.length) + RADIO_STATIONS.length) % RADIO_STATIONS.length;
     },
     pickup() { blip(880, 0.12, 'sine', 0.18, 1320); },
     cash() {
@@ -108,6 +132,9 @@ export function createAudio() {
       window.setTimeout(() => blip(1319, 0.14, 'sine', 0.16), 80);
     },
     gunshot() { noiseBurst(0.14, 0.5, 2400); blip(160, 0.08, 'square', 0.2, 60); },
+    shotgun() { noiseBurst(0.25, 0.6, 1200); blip(110, 0.18, 'square', 0.28, 45); },
+    reload() { blip(1200, 0.04, 'square', 0.08); window.setTimeout(() => blip(900, 0.05, 'square', 0.08), 90); },
+    nitro() { noiseBurst(0.5, 0.25, 5000); blip(220, 0.4, 'sawtooth', 0.08, 880); },
     punch() { noiseBurst(0.08, 0.3, 900); },
     crash() { noiseBurst(0.3, 0.5, 500); blip(90, 0.25, 'sawtooth', 0.2, 40); },
     sirenStart() {
@@ -178,6 +205,8 @@ export function createAudio() {
       [440, 440, 349].forEach((f, i) => window.setTimeout(() => blip(f, 0.25, 'square', 0.14), i * 160));
     },
     horn() { blip(370, 0.18, 'square', 0.1, 370); },
+    // A traffic horn from down the street: two-tone, quieter than the player's.
+    honk() { blip(330, 0.16, 'square', 0.05, 330); window.setTimeout(() => blip(415, 0.16, 'square', 0.05), 140); },
     click() { blip(660, 0.05, 'sine', 0.12); },
   };
 }

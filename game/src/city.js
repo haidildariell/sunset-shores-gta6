@@ -10,6 +10,8 @@ import { hash2 } from './random.js';
 export const WATER_TOP = WORLD_H - 330; // everything below this line is sand, then sea
 export const SAND_TOP = WATER_TOP - 90;
 export const DOCK_X = WORLD_W - 300; // container dock strip on the east edge
+export const PIER_X = 1500; // wooden pier jutting into the sea from the beach
+export const LIGHTHOUSE_X = 330; // the old lighthouse on the west headland
 
 // Named places, in world coordinates. Missions and the minimap read these.
 export const PLACES = {
@@ -23,6 +25,10 @@ export const PLACES = {
   beachBar: { x: 900, y: 2560, name: 'Sunset Bar' },
   park: { x: 1780, y: 1180, name: 'Palmera Park' },
   motel: { x: 2760, y: 980, name: 'Tide Motel' },
+  lighthouse: { x: LIGHTHOUSE_X, y: 2450, name: 'Old Lighthouse' },
+  stadium: { x: 3100, y: 560, name: 'Palmera Bowl' },
+  pitStop: { x: 2320, y: 2050, name: 'Pit Stop Garage' },
+  pier: { x: PIER_X, y: 2560, name: 'Palmera Pier' },
 };
 
 const ROOF_COLORS = [PALETTE.roofA, PALETTE.roofB, PALETTE.roofC, PALETTE.roofD];
@@ -152,6 +158,22 @@ export function isSand(city, x, y) {
 
 export function isDock(city, x, y) {
   return x > DOCK_X && y < WORLD_H - 380;
+}
+
+// The wooden pier: a walkable strip over the water at PIER_X.
+export function isPier(city, x, y) {
+  return Math.abs(x - PIER_X) < 26 && y > SAND_TOP && y < WORLD_H - 40;
+}
+
+// A random point on the sand for joggers and beachgoers, clustered near
+// the bars and the pier instead of spread evenly along the whole beach.
+export function randomBeachPoint(city, rng) {
+  const hotspots = [900, PIER_X, 2100, 2900];
+  const cx = rng.weightedPick(hotspots.map((x) => ({ value: x, weight: x === PIER_X ? 3 : 2 })));
+  return {
+    x: rng.gaussian(cx - 220, cx + 220),
+    y: rng.range(SAND_TOP + 30, WATER_TOP + 20),
+  };
 }
 
 // Circle vs building/containers: push the circle out, return true on hit.

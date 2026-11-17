@@ -3,19 +3,29 @@
 // circle with a heading, a walk speed and a mood.
 
 import { PED_NAMES, PED_SHIRTS } from './config.js';
-import { clampToWorld, collideSolids, nearestRoad } from './city.js';
+import { clampToWorld, collideSolids, nearestRoad, randomBeachPoint } from './city.js';
 
 export function makePedestrian(rng, x, y) {
+  // Roles give the street life: joggers run the beach, tourists stand and
+  // stare at the sea, everyone else strolls the sidewalks.
+  const role = rng.weightedPick([
+    { value: 'stroller', weight: 6 },
+    { value: 'jogger', weight: 2 },
+    { value: 'tourist', weight: 2 },
+  ]);
+  const spot = role === 'jogger' ? randomBeachPoint(null, rng) : null;
   return {
     kind: 'ped',
     name: rng.pick(PED_NAMES),
-    x,
-    y,
+    x: spot ? spot.x : x,
+    y: spot ? spot.y : y,
     angle: rng.range(0, Math.PI * 2),
-    speed: rng.range(38, 62),
+    speed: role === 'jogger' ? rng.range(110, 140) : rng.range(38, 62),
     shirt: rng.pick(PED_SHIRTS),
     skin: rng.pick(['#e8b98a', '#c98d5f', '#8a5a3a', '#f0c8a0']),
+    role,
     target: null,
+    standTimer: role === 'tourist' ? rng.range(4, 10) : 0,
     flee: 0, // seconds of panic left
     panicFrom: null,
     dead: false,
@@ -41,6 +51,7 @@ export function makeOfficer(x, y) {
     walkPhase: 0,
     scared: false,
     bustTimer: 0,
+    calledIn: false, // has this officer already radioed the player in?
   };
 }
 
@@ -62,7 +73,7 @@ function pickStrollTarget(city, rng, ped) {
 
 export function updatePedestrian(city, rng, ped, dt, danger) {
   if (ped.dead) return;
-  ped.walkPhase += dt * 9;
+  ped.walkPhase += dt * (ped.role === 'jogger' ? 14 : 9);
   // Panic: run away from the danger point.
   if (danger && Math.hypot(ped.x - danger.x, ped.y - danger.y) < 320) {
     ped.flee = 2.5;
@@ -75,6 +86,28 @@ export function updatePedestrian(city, rng, ped, dt, danger) {
     ped.x += Math.cos(away) * 150 * dt;
     ped.y += Math.sin(away) * 150 * dt;
     ped.scared = true;
+  } else if (ped.role === 'tourist' && ped.standTimer > 0) {
+    // Tourists stand on the sand, face the sea, then wander on.
+    ped.standTimer -= dt;
+    ped.scared = false;
+    ped.angle += (Math.PI / 2 - ped.angle) * Math.min(1, dt * 2);
+    if (ped.standTimer <= 0) {
+      ped.target = randomBeachPoint(city, rng);
+      ped.standTimer = rng.range(4, 10);
+    }
+  } else if (ped.role === 'jogger') {
+    // Joggers run the beach line, turning at the pier and the docks.
+    if (!ped.target || Math.hypot(ped.target.x - ped.x, ped.target.y - ped.y) < 24) {
+      ped.target = randomBeachPoint(city, rng);
+    }
+    const want = Math.atan2(ped.target.y - ped.y, ped.target.x - ped.x);
+    let diff = want - ped.angle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    ped.angle += Math.max(-3 * dt, Math.min(3 * dt, diff));
+    ped.x += Math.cos(ped.angle) * ped.speed * dt;
+    ped.y += Math.sin(ped.angle) * ped.speed * dt;
+    ped.scared = false;
   } else {
     ped.scared = false;
     if (!ped.target || Math.hypot(ped.target.x - ped.x, ped.target.y - ped.y) < 18) {
@@ -93,8 +126,10 @@ export function updatePedestrian(city, rng, ped, dt, danger) {
 }
 
 // Officers run straight at the player; if they stay close, the bust begins.
+// Returns 'called-in' the first time an officer gets close enough to radio
+// the player in while the heat is still low, so the street can escalate.
 export function updateOfficer(city, officer, player, dt) {
-  if (officer.dead) return;
+  if (officer.dead) return null;
   officer.walkPhase += dt * 11;
   const dx = player.x - officer.x;
   const dy = player.y - officer.y;
@@ -108,4 +143,9 @@ export function updateOfficer(city, officer, player, dt) {
   clampToWorld(officer, 24);
   if (d < 30) officer.bustTimer += dt;
   else officer.bustTimer = Math.max(0, officer.bustTimer - dt * 2);
+  if (d < 130 && !officer.calledIn) {
+    officer.calledIn = true;
+    return 'called-in';
+  }
+  return null;
 }

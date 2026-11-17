@@ -18,6 +18,7 @@ export function createWanted() {
     spawnTimer: 0,
     officerTimer: 0,
     sirenOn: false,
+    roadblockUp: false, // a roadblock is standing while the heat is 4+
   };
 }
 
@@ -56,6 +57,31 @@ function steerToward(car, tx, ty, dt) {
   return Math.max(-1, Math.min(1, diff * 2.4));
 }
 
+// At four stars the PD blocks the road ahead of the player: two cruisers
+// parked nose-to-tail across the nearest road, lights flashing.
+export function spawnRoadblock(rng, city, player) {
+  const vertical = Math.abs(player.vx ?? 0) < Math.abs(player.vy ?? 0);
+  const ahead = 420;
+  const fx = Math.cos(player.angle);
+  const fy = Math.sin(player.angle);
+  const bx = player.x + fx * ahead;
+  const by = player.y + fy * ahead;
+  const blocked = [];
+  for (let i = 0; i < 2; i += 1) {
+    const side = i === 0 ? -34 : 34;
+    const car = makeCar(0, bx - fy * side, by + fx * side, player.angle + Math.PI / 2, {
+      police: true,
+      driver: 'police',
+      color: '#16181d',
+    });
+    car.speed = 0;
+    car.cruise = 0;
+    car.roadblock = true;
+    blocked.push(car);
+  }
+  return blocked;
+}
+
 // Chase: police cars ram the player's car, or pull up beside the player on
 // foot so an officer can get out. Officers on foot run the player down.
 export function updateWanted(city, rng, wanted, dt, player, playerCar, events) {
@@ -88,10 +114,11 @@ export function updateWanted(city, rng, wanted, dt, player, playerCar, events) {
     wanted.decayTimer = 0;
   }
 
-  // Keep the right number of pursuit cars on the street.
+  // Keep the right number of pursuit cars on the street (roadblock cars
+  // hold their ground and do not count toward the pursuit pack).
   const wantCars = WANTED.pursuitCars[wanted.level] ?? 0;
   wanted.spawnTimer -= dt;
-  if (wanted.policeCars.filter((c) => !c.dead).length < wantCars && wanted.spawnTimer <= 0) {
+  if (wanted.policeCars.filter((c) => !c.dead && !c.roadblock).length < wantCars && wanted.spawnTimer <= 0) {
     wanted.policeCars.push(spawnPoliceCar(rng, city, { x: px, y: py }));
     wanted.spawnTimer = 2.2;
   }
@@ -110,9 +137,20 @@ export function updateWanted(city, rng, wanted, dt, player, playerCar, events) {
   if (!siren && wanted.sirenOn) events.push({ type: 'siren-off' });
   wanted.sirenOn = siren;
 
-  // Pursuit steering.
+  // Four stars and up: one roadblock ahead of the player, rebuilt when the
+  // player smashes through it or the heat falls back.
+  if (wanted.level >= 4 && !wanted.roadblockUp) {
+    const block = spawnRoadblock(rng, city, player);
+    wanted.policeCars.push(...block);
+    wanted.roadblockUp = true;
+    events.push({ type: 'roadblock' });
+  }
+  if (wanted.level < 4) wanted.roadblockUp = false;
+
+  // Pursuit steering. Roadblock cars hold their ground instead of chasing.
   for (const car of wanted.policeCars) {
     if (car.dead) continue;
+    if (car.roadblock) continue;
     // Predict where the player will be, and aim a little past them to ram.
     const lead = 0.45;
     const tx = px + (playerCar ? playerCar.vx * lead : 0);
@@ -124,7 +162,11 @@ export function updateWanted(city, rng, wanted, dt, player, playerCar, events) {
   }
   for (const officer of wanted.officers) {
     if (officer.dead) continue;
-    updateOfficer(city, officer, player, dt);
+    const call = updateOfficer(city, officer, player, dt);
+    if (call === 'called-in' && wanted.level < 2) {
+      addHeat(wanted, 1);
+      events.push({ type: 'called-in' });
+    }
     if (officer.bustTimer > 0.9) {
       events.push({ type: 'busted' });
       officer.bustTimer = 0;

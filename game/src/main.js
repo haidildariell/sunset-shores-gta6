@@ -6,19 +6,19 @@
 // stages that scene instead of running the loop, paints it twice and sets
 // window.__shotReady for a screenshot.
 
-import { CAR, PLAYER, STEP, WORLD_H, WORLD_W } from './config.js';
+import { CAR, PITSTOP_COST, PLAYER, STEP, WORLD_H, WORLD_W } from './config.js';
 import { createRandom } from './random.js';
 import { buildCity, clampToWorld, collideSolids, isWater, randomRoadPoint } from './city.js';
 import { createAudio } from './audio.js';
-import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_INTERACT, ACTION_MUTE, ACTION_PAUSE, ACTION_RESTART, ACTION_RUN, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_INTERACT, ACTION_MUTE, ACTION_PAUSE, ACTION_RADIO, ACTION_RESTART, ACTION_RUN, ACTION_WEAPON, createInput } from './input.js';
 import { createRenderer } from './render.js';
 import { drawEndScreen, drawHud, drawPausedScreen, drawTitleScreen } from './hud.js';
 import { addHeat, clearWanted, createWanted, policeRamDamage, updateWanted } from './police.js';
-import { collideCars, driveCar, isStealable, makeCar } from './vehicles.js';
+import { collideCars, driveCar, isStealable, makeCar, repairCar } from './vehicles.js';
 import { makePedestrian, updatePedestrian } from './people.js';
 import { separateTraffic, spawnTrafficCar, updateTrafficCar } from './traffic.js';
-import { createCombat, tryPunch, tryShoot, updateBullets, updateEnemies, updateParticles, updatePickups } from './combat.js';
-import { createMissionState, currentMission, currentStep, makeCourierJob, retryMission, startMission, updateMission } from './missions.js';
+import { createCombat, switchWeapon, tryPunch, tryShoot, updateBullets, updateEnemies, updateParticles, updatePickups } from './combat.js';
+import { MISSIONS, createMissionState, currentMission, currentStep, makeCourierJob, retryMission, startMission, updateMission } from './missions.js';
 import { loadSave, writeSave } from './save.js';
 import { stageShot } from './shots.js';
 
@@ -49,6 +49,7 @@ function makePlayer(x, y) {
     health: PLAYER.maxHealth,
     cash: PLAYER.startCash,
     ammo: PLAYER.startAmmo,
+    weapon: 'pistol', // Q switches to the shotgun
     car: null,
     walkPhase: 0,
     shirt: '#e86a2e',
@@ -64,6 +65,7 @@ function createWorld() {
   const player = makePlayer(940, 700);
   if (save) {
     player.cash = save.cash;
+    player.weapon = save.weapon ?? 'pistol';
     for (const i of save.stashesTaken) {
       if (city.stashes[i]) city.stashes[i].taken = true;
     }
@@ -80,6 +82,9 @@ function createWorld() {
     mission: createMissionState(),
     courier: null,
     courierTimer: 40,
+    courierDone: save ? save.courierDone : 0,
+    radioStation: save ? save.radioStation : 0,
+    radioName: 'SUNSET FM',
     clock: 17 * 60 + 20, // golden hour
     day: 1,
     dayName: 'Day 1',
@@ -95,7 +100,11 @@ function createWorld() {
     time: 0,
     shake: 0,
   };
-  if (save) world.mission.index = Math.min(save.missionIndex, 6);
+  if (save) {
+    world.mission.index = Math.min(save.missionIndex, MISSIONS.length);
+    audio.setStation(save.radioStation ?? 0);
+    world.radioName = audio.radioName;
+  }
   return world;
 }
 
@@ -213,7 +222,7 @@ function startGame() {
   screen = 'play';
   audio.unlock();
   audio.startMusic();
-  if (world.mission.index < 6 && !world.mission.startedOnce) {
+  if (world.mission.index < MISSIONS.length && !world.mission.startedOnce) {
     world.mission.startedOnce = true;
     startMission(missionCtx(), world.mission);
   }
@@ -317,7 +326,9 @@ function updatePlayerDriving(dt, input, actions) {
   const car = player.car;
   const throttle = -input.moveY(); // W is forward (moveY is -1 up)
   const steer = input.moveX();
-  const scraped = driveCar(city, car, throttle, steer, dt);
+  const boosting = (actions & ACTION_RUN) !== 0 && car.nitro > 0 && throttle > 0;
+  if (boosting && !car.boosting) audio.nitro();
+  const scraped = driveCar(city, car, throttle, steer, dt, { boost: boosting });
   if (scraped) {
     audio.crash();
     renderer.addShake(4);
@@ -383,6 +394,7 @@ function updateCourier(dt) {
       say(`Package picked up. Deliver to ${c.dropoff.name}.`);
     } else {
       player.cash += c.pay;
+      world.courierDone += 1;
       audio.cash();
       say(`Courier done. +$${c.pay}.`);
       world.courier = null;
@@ -390,6 +402,19 @@ function updateCourier(dt) {
       writeSave(world);
     }
   }
+}
+
+// Pit Stop Garage: a wrecked car gets a full repair for $100, no questions.
+function updatePitStop() {
+  const r = city.places.pitStop;
+  if (!player.car || player.car.health >= 100) return;
+  if (player.cash < PITSTOP_COST) return;
+  if (Math.hypot(player.x - r.x, player.y - r.y) > 110) return;
+  player.cash -= PITSTOP_COST;
+  repairCar(player.car);
+  audio.cash();
+  say(`Pit Stop: good as new, full nitro. -$${PITSTOP_COST}.`);
+  writeSave(world);
 }
 
 function updateRespray() {
@@ -424,6 +449,11 @@ function handleEvents() {
     if (e.type === 'siren-on') audio.sirenStart();
     if (e.type === 'siren-off') audio.sirenStop();
     if (e.type === 'busted') endScreen('busted');
+    if (e.type === 'roadblock') say('Roadblock ahead! The PD is boxing you in.');
+    if (e.type === 'called-in') {
+      world.wantedFlash = 1;
+      say('An officer radioed you in. The heat is rising.');
+    }
     if (e.type === 'ram') {
       renderer.addShake(e.strength * 8);
       if (player.car) {
@@ -497,10 +527,20 @@ function step(dt, input, actions) {
     player.health = Math.min(PLAYER.maxHealth, player.health + 2 * dt);
   }
 
-  // Missions, courier, respray, stashes.
+  // Traffic horns: a blocked driver leans on it, but only when close
+  // enough for the player to hear.
+  for (const car of world.traffic) {
+    if (car.honkTimer > 0 && !car.honkDone) {
+      car.honkDone = true;
+      if (Math.hypot(car.x - player.x, car.y - player.y) < 600) audio.honk();
+    }
+  }
+
+  // Missions, courier, respray, pit stop, stashes.
   updateMission(missionCtx(), world.mission, dt);
   updateCourier(dt);
   updateRespray();
+  updatePitStop();
   updateStashes();
   world.marker = missionMarker();
 
@@ -542,6 +582,16 @@ function runGame() {
     if ((actions & ACTION_MUTE) !== 0) {
       const muted = audio.toggleMute();
       say(muted ? 'Sound muted.' : 'Sound on.');
+    }
+    if ((actions & ACTION_WEAPON) !== 0 && screen === 'play' && !player.car) {
+      const w = switchWeapon(player, audio);
+      say(w === 'shotgun' ? 'Shotgun out. Up close and personal.' : 'Pistol out.');
+    }
+    if ((actions & ACTION_RADIO) !== 0 && screen === 'play') {
+      world.radioName = audio.cycleRadio();
+      world.radioStation = (world.radioStation + 1) % 3;
+      say(`Radio: ${world.radioName}.`);
+      writeSave(world);
     }
     if ((actions & ACTION_CONFIRM) !== 0 && (screen === 'title' || screen === 'over')) {
       if (screen === 'title') startGame();

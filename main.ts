@@ -9,7 +9,7 @@
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -37,3 +37,12 @@ writeFileSync(
     game_path_max_bytes: 1000,
   }),
 );
+
+// Report what was handed in, so a local run can be eyeballed before submit:
+// dossier bytes and the screenshots that went with it. The grader only reads
+// the files; this log changes nothing on disk.
+const dossierBytes = statSync(join(out, 'dossier.json')).size;
+const shotCount = existsSync(join(out, 'screenshots'))
+  ? (await import('node:fs')).readdirSync(join(out, 'screenshots')).filter((f) => !f.startsWith('.')).length
+  : 0;
+console.log(`Sunset Shores handed in: dossier.json ${dossierBytes} bytes, ${shotCount} screenshots.`);

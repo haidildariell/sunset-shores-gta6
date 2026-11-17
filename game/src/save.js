@@ -1,6 +1,6 @@
-// Save: the player's cash, mission progress and best cash, kept in
-// localStorage. Nothing leaves the browser; a missing or broken save just
-// starts a fresh story.
+// Save: the player's cash, mission progress, best cash, weapon, radio
+// station and courier tally, kept in localStorage. Nothing leaves the
+// browser; a missing or broken save just starts a fresh story.
 
 import { SAVE_KEY } from './config.js';
 
@@ -15,6 +15,11 @@ export function loadSave() {
       missionIndex: typeof data.missionIndex === 'number' ? data.missionIndex : 0,
       bestCash: typeof data.bestCash === 'number' ? data.bestCash : 0,
       stashesTaken: Array.isArray(data.stashesTaken) ? data.stashesTaken : [],
+      // Added in the v2 pass: old saves simply fall back to the defaults.
+      weapon: data.weapon === 'shotgun' ? 'shotgun' : 'pistol',
+      radioStation: typeof data.radioStation === 'number' ? data.radioStation : 0,
+      courierDone: typeof data.courierDone === 'number' ? data.courierDone : 0,
+      storyDone: data.storyDone === true,
     };
   } catch {
     return null;
@@ -28,6 +33,10 @@ export function writeSave(world) {
       missionIndex: world.mission.index,
       bestCash: Math.max(world.bestCash, Math.floor(world.player.cash)),
       stashesTaken: world.city.stashes.map((s, i) => (s.taken ? i : -1)).filter((i) => i >= 0),
+      weapon: world.player.weapon ?? 'pistol',
+      radioStation: world.radioStation ?? 0,
+      courierDone: world.courierDone ?? 0,
+      storyDone: world.mission.done === true,
     };
     window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     world.bestCash = data.bestCash;

@@ -2,14 +2,14 @@
 // for the car ahead, and occasionally turn at intersections. Police cars
 // reuse the same body but are steered by the wanted system instead.
 
-import { ROAD_W } from './config.js';
+import { CAR_TYPES, ROAD_W } from './config.js';
 import { collideCars, driveCar, makeCar } from './vehicles.js';
 import { randomRoadPoint } from './city.js';
 
 // Spawn a traffic car on a road near a point, already rolling.
 export function spawnTrafficCar(rng, city, near, radius) {
   const spot = randomRoadPoint(city, rng, near, radius);
-  const type = rng.int(0, 7);
+  const type = rng.int(0, CAR_TYPES.length - 1);
   const car = makeCar(type, spot.x, spot.y, spot.vertical ? Math.PI / 2 : 0, { driver: 'traffic' });
   car.speed = rng.range(120, 210);
   car.cruise = rng.range(140, 230);
@@ -71,6 +71,7 @@ export function updateTrafficCar(city, rng, car, dt, others, playerCar) {
   let throttle = 0.55;
   const ahead = Math.cos(car.angle);
   const aside = Math.sin(car.angle);
+  let blocked = false;
   for (const other of others) {
     if (other === car || other.dead) continue;
     const dx = other.x - car.x;
@@ -79,6 +80,7 @@ export function updateTrafficCar(city, rng, car, dt, others, playerCar) {
     const side = Math.abs(-dx * aside + dy * ahead);
     if (forward > 0 && forward < 95 && side < 42) {
       throttle = -0.7;
+      blocked = true;
       break;
     }
   }
@@ -87,8 +89,19 @@ export function updateTrafficCar(city, rng, car, dt, others, playerCar) {
     const dy = playerCar.y - car.y;
     const forward = dx * ahead + dy * aside;
     const side = Math.abs(-dx * aside + dy * ahead);
-    if (forward > 0 && forward < 110 && side < 46) throttle = -0.7;
+    if (forward > 0 && forward < 110 && side < 46) {
+      throttle = -0.7;
+      blocked = true;
+    }
   }
+  // Brake lights show the slowdown; a blocked driver leans on the horn.
+  car.brakeLights = throttle < 0;
+  if (blocked && car.speed < 40 && car.honkTimer <= 0) {
+    car.honkTimer = 0.9;
+    car.honkDone = false;
+  }
+  if (car.honkTimer > 0) car.honkTimer -= dt;
+  else car.honkDone = false;
   // Ease toward cruise speed.
   if (car.speed > car.cruise) throttle = Math.min(throttle, 0);
   driveCar(city, car, throttle, steer, dt);

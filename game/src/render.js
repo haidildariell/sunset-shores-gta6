@@ -2,9 +2,18 @@
 // (roads, blocks, buildings, beach, sea, park, docks), then each frame the
 // camera draws the visible slice plus every moving thing on top.
 
-import { PALETTE, ROAD_W, WORLD_H, WORLD_W } from './config.js';
-import { DOCK_X, SAND_TOP, WATER_TOP } from './city.js';
+import { DAYLIGHT, PALETTE, ROAD_W, WORLD_H, WORLD_W } from './config.js';
+import { DOCK_X, LIGHTHOUSE_X, PIER_X, SAND_TOP, WATER_TOP } from './city.js';
 import { carCircles } from './vehicles.js';
+
+// How dark is it, 0 (day) to 1 (deep night), from the game clock: golden
+// hour at 17:20, dusk falling after 19:30, night by 20:30, dawn at 06:00.
+export function darknessAt(clockMinutes) {
+  const { duskStart, nightStart, dawnStart } = DAYLIGHT;
+  if (clockMinutes >= nightStart || clockMinutes < dawnStart) return 1;
+  if (clockMinutes < duskStart) return 0;
+  return (clockMinutes - duskStart) / (nightStart - duskStart);
+}
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -58,6 +67,54 @@ function paintGround(city) {
     g.fillStyle = '#8a6f4d';
     g.fillRect(x - 1, SAND_TOP + 46, 2, 16);
   }
+
+  // Wooden pier: planks from the sand out over the sea, with posts.
+  g.fillStyle = '#7a5a38';
+  g.fillRect(PIER_X - 26, SAND_TOP, 52, WORLD_H - SAND_TOP - 30);
+  g.fillStyle = '#8a6a44';
+  for (let y = SAND_TOP; y < WORLD_H - 40; y += 22) {
+    g.fillRect(PIER_X - 26, y, 52, 14);
+  }
+  g.fillStyle = '#5d452a';
+  for (let y = SAND_TOP + 10; y < WORLD_H - 40; y += 90) {
+    g.fillRect(PIER_X - 32, y, 6, 6);
+    g.fillRect(PIER_X + 26, y, 6, 6);
+  }
+
+  // Old lighthouse on the west headland: striped tower on a rock base.
+  g.fillStyle = '#6b6f75';
+  g.beginPath();
+  g.arc(LIGHTHOUSE_X, 2450, 46, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#f5efe0';
+  g.fillRect(LIGHTHOUSE_X - 14, 2380, 28, 80);
+  g.fillStyle = '#c23b2e';
+  g.fillRect(LIGHTHOUSE_X - 14, 2400, 28, 12);
+  g.fillRect(LIGHTHOUSE_X - 14, 2428, 28, 12);
+  g.fillStyle = '#2e2e33';
+  g.fillRect(LIGHTHOUSE_X - 11, 2368, 22, 14);
+  g.fillStyle = '#ffe9a8';
+  g.fillRect(LIGHTHOUSE_X - 8, 2371, 16, 8);
+
+  // Palmera Bowl stadium: a ring of stands around a green field.
+  const st = { x: 3100, y: 560 };
+  g.fillStyle = '#5b6770';
+  g.beginPath();
+  g.ellipse(st.x, st.y, 150, 105, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#7fae5a';
+  g.beginPath();
+  g.ellipse(st.x, st.y, 118, 76, 0, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = '#f5efe0';
+  g.lineWidth = 3;
+  g.beginPath();
+  g.ellipse(st.x, st.y, 118, 76, 0, 0, Math.PI * 2);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(st.x - 118, st.y);
+  g.lineTo(st.x + 118, st.y);
+  g.stroke();
 
   // Sidewalk slabs: a lighter border around every road.
   g.fillStyle = PALETTE.sidewalk;
@@ -245,6 +302,24 @@ export function createRenderer(canvas, city) {
       ctx.fillStyle = '#ff2d2d';
       ctx.fillRect(-t.len / 2 - 1, -t.wid / 2 + 4, 3, 6);
       ctx.fillRect(-t.len / 2 - 1, t.wid / 2 - 10, 3, 6);
+    }
+    // Nitro flames licking from the exhaust while boosting.
+    if (car.boosting) {
+      const flick = 8 + Math.sin(time * 40) * 4;
+      ctx.fillStyle = '#ff9a3c';
+      ctx.beginPath();
+      ctx.moveTo(-t.len / 2 - 2, -8);
+      ctx.lineTo(-t.len / 2 - 18 - flick, 0);
+      ctx.lineTo(-t.len / 2 - 2, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ffe9a8';
+      ctx.beginPath();
+      ctx.moveTo(-t.len / 2 - 2, -5);
+      ctx.lineTo(-t.len / 2 - 12 - flick * 0.6, 0);
+      ctx.lineTo(-t.len / 2 - 2, 5);
+      ctx.closePath();
+      ctx.fill();
     }
     // Damage smoke.
     if (car.health < 45) {
@@ -477,13 +552,54 @@ export function createRenderer(canvas, city) {
       }
       ctx.globalAlpha = 1;
 
-      // Golden-hour tint + vignette.
+      // Headlight cones after dark: the player's car and police lights cut
+      // through the night, and the lighthouse sweeps the bay.
+      const dark = darknessAt(world.clock);
+      if (dark > 0.25) {
+        const beams = [...cars]; // traffic, police, parked and the player's car
+        for (const car of beams) {
+          if (car.dead) continue;
+          const a = car.angle;
+          const hx = car.x + Math.cos(a) * (car.type.len / 2);
+          const hy = car.y + Math.sin(a) * (car.type.len / 2);
+          const grad = ctx.createRadialGradient(hx, hy, 10, hx + Math.cos(a) * 150, hy + Math.sin(a) * 150, 190);
+          grad.addColorStop(0, `rgba(255,233,168,${0.28 * dark})`);
+          grad.addColorStop(1, 'rgba(255,233,168,0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.moveTo(hx, hy);
+          ctx.arc(hx + Math.cos(a) * 150, hy + Math.sin(a) * 150, 60, a - 0.5, a + 0.5);
+          ctx.closePath();
+          ctx.fill();
+        }
+        // Lighthouse beam, sweeping slowly across the water.
+        const la = time * 0.35;
+        const lx = LIGHTHOUSE_X;
+        const ly = 2372;
+        const beam = ctx.createRadialGradient(lx, ly, 10, lx + Math.cos(la) * 500, ly + Math.sin(la) * 500, 520);
+        beam.addColorStop(0, `rgba(255,233,168,${0.22 * dark})`);
+        beam.addColorStop(1, 'rgba(255,233,168,0)');
+        ctx.fillStyle = beam;
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.arc(lx + Math.cos(la) * 500, ly + Math.sin(la) * 500, 90, la - 0.18, la + 0.18);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Time-of-day tint: golden hour by default, dusk purple, then night
+      // blue over everything, plus the vignette.
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      const tint = ctx.createLinearGradient(0, 0, 0, h);
-      tint.addColorStop(0, 'rgba(255,170,80,0.05)');
-      tint.addColorStop(1, 'rgba(255,120,40,0.10)');
-      ctx.fillStyle = tint;
-      ctx.fillRect(0, 0, w, h);
+      if (dark > 0) {
+        ctx.fillStyle = `rgba(24,32,80,${(dark * 0.42).toFixed(3)})`;
+        ctx.fillRect(0, 0, w, h);
+      } else {
+        const tint = ctx.createLinearGradient(0, 0, 0, h);
+        tint.addColorStop(0, 'rgba(255,170,80,0.05)');
+        tint.addColorStop(1, 'rgba(255,120,40,0.10)');
+        ctx.fillStyle = tint;
+        ctx.fillRect(0, 0, w, h);
+      }
       const vig = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.42, w / 2, h / 2, Math.max(w, h) * 0.75);
       vig.addColorStop(0, 'rgba(0,0,0,0)');
       vig.addColorStop(1, 'rgba(0,0,0,0.28)');

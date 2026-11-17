@@ -3,11 +3,13 @@
 // the dialogue line, the start/pause/busted screens and the edge arrow that
 // points at an off-screen objective.
 
-import { HUD } from './config.js';
+import { HUD, WEAPONS } from './config.js';
 import { MISSIONS } from './missions.js';
 
-function drawStars(ctx, level, x, y) {
-  ctx.font = `${HUD.starSize}px sans-serif`;
+function drawStars(ctx, level, x, y, time) {
+  // Four stars and up pulse: the heat is visibly urgent.
+  const pulse = level >= 4 ? 1 + Math.sin(time * 8) * 0.12 : 1;
+  ctx.font = `${Math.round(HUD.starSize * pulse)}px sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   for (let i = 0; i < 5; i += 1) {
@@ -112,7 +114,8 @@ export function drawHud(ctx, world, screen, time) {
   ctx.fillText(`$${p.cash.toLocaleString('en-US')}`, 24, 40);
   ctx.fillStyle = '#fff';
   ctx.font = '13px sans-serif';
-  ctx.fillText(`AMMO ${p.ammo}`, 170, 38);
+  const weapon = WEAPONS[p.weapon ?? 'pistol'] ?? WEAPONS.pistol;
+  ctx.fillText(`AMMO ${p.ammo}  •  ${weapon.name}`, 150, 38);
   // Health bar.
   ctx.fillStyle = '#3a1515';
   ctx.fillRect(24, 52, 200, 12);
@@ -129,7 +132,7 @@ export function drawHud(ctx, world, screen, time) {
   }
 
   // Top-right: wanted stars + clock, under the minimap.
-  drawStars(ctx, world.wanted.level, w - 250, HUD.minimapMargin + HUD.minimapSize + 34);
+  drawStars(ctx, world.wanted.level, w - 250, HUD.minimapMargin + HUD.minimapSize + 34, time);
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 14px sans-serif';
   ctx.textAlign = 'right';
@@ -238,22 +241,50 @@ export function drawHud(ctx, world, screen, time) {
     }
   }
 
-  // Driving speed + controls hint, bottom-right / bottom-left.
+  // Driving speed + nitro + radio, bottom-right; controls hint bottom-left.
   if (p.car) {
     const kmh = Math.round(Math.abs(p.car.speed) * 0.24);
     ctx.fillStyle = 'rgba(10,12,16,0.72)';
-    ctx.fillRect(w - 130, h - 64, 118, 52);
+    ctx.fillRect(w - 130, h - 96, 118, 84);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 26px sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(`${kmh}`, w - 40, h - 30);
+    ctx.fillText(`${kmh}`, w - 40, h - 62);
     ctx.font = '12px sans-serif';
-    ctx.fillText('km/h', w - 22, h - 30);
+    ctx.fillText('km/h', w - 22, h - 62);
+    // Nitro meter under the speedo, full orange while boosting.
+    ctx.fillStyle = '#3a3a15';
+    ctx.fillRect(w - 118, h - 52, 94, 8);
+    ctx.fillStyle = p.car.boosting ? '#ff9a3c' : '#ffd23c';
+    ctx.fillRect(w - 118, h - 52, 94 * Math.max(0, p.car.nitro / 100), 8);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.fillText(p.car.boosting ? 'NITRO!' : 'NITRO', w - 22, h - 36);
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = '11px sans-serif';
+    ctx.fillText(`♪ ${world.radioName ?? 'SUNSET FM'}`, w - 22, h - 20);
+  } else {
+    ctx.fillStyle = 'rgba(10,12,16,0.72)';
+    ctx.fillRect(w - 130, h - 64, 118, 52);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`♪ ${world.radioName ?? 'SUNSET FM'}`, w - 22, h - 30);
   }
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.font = '12px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(p.car ? 'WASD drive  •  E exit car  •  H horn  •  M mute  •  Esc pause' : 'WASD move  •  Shift run  •  E enter car  •  Click shoot  •  F punch  •  M mute  •  Esc pause', 14, h - 14);
+  ctx.fillText(p.car ? 'WASD drive  •  Shift nitro  •  E exit car  •  H horn  •  C radio  •  M mute  •  Esc pause' : 'WASD move  •  Shift run  •  E enter car  •  Click shoot  •  Q weapon  •  F punch  •  C radio  •  M mute  •  Esc pause', 14, h - 14);
+
+  // Low-health vignette: the screen bleeds red at the edges when hurt.
+  if (p.health < 35 && p.health > 0) {
+    const hurt = (35 - p.health) / 35;
+    const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.36, w / 2, h / 2, Math.max(w, h) * 0.72);
+    vg.addColorStop(0, 'rgba(230,50,41,0)');
+    vg.addColorStop(1, `rgba(230,50,41,${(0.35 + hurt * 0.3).toFixed(3)})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, w, h);
+  }
 
   // Wanted flash when the heat rises.
   if (world.wantedFlash > 0) {
@@ -304,15 +335,15 @@ export function drawTitleScreen(ctx, world, best) {
   ctx.fillText('An open-world crime story in Palmera Bay', w / 2, h * 0.32 + 44);
   ctx.fillStyle = '#ffd23c';
   ctx.font = 'bold 15px sans-serif';
-  ctx.fillText('DAZ COLE  •  MARA QUINN  •  SIX JOBS  •  ONE SUNSET', w / 2, h * 0.32 + 72);
+  ctx.fillText('DAZ COLE  •  MARA QUINN  •  SEVEN JOBS  •  ONE SUNSET', w / 2, h * 0.32 + 72);
 
   const lines = [
-    'WASD / Arrows — move & drive      Shift — run',
-    'E — steal / enter a car           H — horn',
-    'Mouse — aim & shoot               F — punch',
+    'WASD / Arrows — move & drive      Shift — run / nitro in a car',
+    'E — steal / enter a car           H — horn        C — radio',
+    'Mouse — aim & shoot               Q — pistol / shotgun     F — punch',
     'Steal cars, run jobs for Mara, outrun the Palmera PD.',
-    'Missions pay cash. Wanted stars bring the police.',
-    'Lucky Spray Garage clears your wanted level for $200.',
+    'Missions pay cash. Wanted stars bring the police — and roadblocks at four.',
+    'Lucky Spray clears your wanted level for $200. Pit Stop repairs your car for $100.',
   ];
   ctx.fillStyle = '#fff';
   ctx.font = '16px sans-serif';

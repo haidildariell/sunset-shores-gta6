@@ -29,6 +29,32 @@ export function createRandom(seed) {
     pickIndex(n) {
       return Math.floor(this.next() * n);
     },
+    // Bell-curved pick around the middle of [min, max]: crowds cluster
+    // around the beach bars and the park instead of spreading evenly.
+    gaussian(min, max) {
+      const u = (this.next() + this.next() + this.next()) / 3;
+      return min + u * (max - min);
+    },
+    // Fisher-Yates on a copy: the same seed shuffles the same way.
+    shuffle(list) {
+      const out = [...list];
+      for (let i = out.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(this.next() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
+    },
+    // Pick an entry with a weight: [{value, weight}, ...].
+    weightedPick(entries) {
+      let total = 0;
+      for (const e of entries) total += e.weight;
+      let roll = this.next() * total;
+      for (const e of entries) {
+        roll -= e.weight;
+        if (roll <= 0) return e.value;
+      }
+      return entries[entries.length - 1].value;
+    },
   };
 }
 

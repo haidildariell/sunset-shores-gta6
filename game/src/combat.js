@@ -1,8 +1,9 @@
-// Combat: fists and the pistol, bullets, armed enemies, and the pickups
-// (health, ammo, cash) the city leaves around. Enemies only exist inside
-// missions; the street itself stays a place to walk, not a warzone.
+// Combat: fists, two guns (pistol and a Q-switched shotgun), bullets, armed
+// enemies, and the pickups (health, ammo, cash) the city leaves around.
+// Enemies only exist inside missions; the street itself stays a place to
+// walk, not a warzone.
 
-import { PLAYER } from './config.js';
+import { PLAYER, WEAPONS } from './config.js';
 
 export function createCombat() {
   return {
@@ -16,16 +17,28 @@ export function createCombat() {
   };
 }
 
+// Enemy kinds: Guards hold the bank, Vipers hold the docks, Enforcers are
+// the crew's heavy hitters in the finale — more health, faster trigger.
+const ENEMY_KINDS = {
+  Guard: { health: 70, speed: 150, damage: 9, fireDelay: 0.9 },
+  Viper: { health: 90, speed: 165, damage: 10, fireDelay: 0.8 },
+  Enforcer: { health: 130, speed: 175, damage: 12, fireDelay: 0.6 },
+};
+
 export function spawnEnemy(combat, x, y, name) {
+  const kind = ENEMY_KINDS[name] ?? ENEMY_KINDS.Guard;
   combat.enemies.push({
     kind: 'enemy',
     x,
     y,
     angle: 0,
-    health: 70,
-    speed: 150,
+    health: kind.health,
+    speed: kind.speed,
+    damage: kind.damage,
+    fireDelay: kind.fireDelay,
     state: 'guard',
     shootTimer: 1 + Math.random() * 1.5,
+    strafeDir: Math.random() < 0.5 ? 1 : -1,
     name: name ?? 'Rival',
     dead: false,
     walkPhase: Math.random() * 6,
@@ -48,6 +61,15 @@ export function fireBullet(combat, x, y, angle, fromPlayer, damage) {
     damage,
   });
   combat.muzzle = 0.06;
+}
+
+// A shotgun blast: several pellets fanning out from one shot.
+export function fireSpread(combat, x, y, angle, fromPlayer, weapon) {
+  for (let i = 0; i < weapon.pellets; i += 1) {
+    const off = (i - (weapon.pellets - 1) / 2) * weapon.spread;
+    fireBullet(combat, x, y, angle + off, fromPlayer, weapon.damage);
+  }
+  addParticles(combat, x + Math.cos(angle) * 26, y + Math.sin(angle) * 26, '#ffdf4d', 5, 160);
 }
 
 export function addParticles(combat, x, y, color, count, speed) {
@@ -90,11 +112,24 @@ export function tryPunch(combat, player, audio) {
 
 export function tryShoot(combat, player, audio) {
   if (combat.shootTimer > 0 || player.ammo <= 0) return false;
-  combat.shootTimer = PLAYER.pistolCooldown;
-  player.ammo -= 1;
-  fireBullet(combat, player.x, player.y, player.angle, true, PLAYER.pistolDamage);
-  audio.gunshot();
+  const weapon = WEAPONS[player.weapon ?? 'pistol'] ?? WEAPONS.pistol;
+  combat.shootTimer = weapon.cooldown;
+  player.ammo -= weapon.ammoCost;
+  if (weapon.pellets > 1) {
+    fireSpread(combat, player.x, player.y, player.angle, true, weapon);
+    audio.shotgun();
+  } else {
+    fireBullet(combat, player.x, player.y, player.angle, true, weapon.damage);
+    audio.gunshot();
+  }
   return true;
+}
+
+// Q switches pistol <-> shotgun; the HUD shows which is in hand.
+export function switchWeapon(player, audio) {
+  player.weapon = player.weapon === 'shotgun' ? 'pistol' : 'shotgun';
+  if (audio) audio.reload();
+  return player.weapon;
 }
 
 // Bullets fly, hit enemies / the player / buildings, and die.
@@ -161,11 +196,21 @@ export function updateEnemies(city, combat, dt, player, onPlayerHit) {
       if (d > 130) {
         e.x += Math.cos(e.angle) * e.speed * dt;
         e.y += Math.sin(e.angle) * e.speed * dt;
+      } else {
+        // In range: strafe sideways so the player cannot just stand still
+        // and trade shots — flip direction at random or on a wall.
+        e.strafeTimer = (e.strafeTimer ?? 0) - dt;
+        if (e.strafeTimer <= 0) {
+          e.strafeDir *= -1;
+          e.strafeTimer = 0.8 + Math.random() * 1.2;
+        }
+        e.x += Math.cos(e.angle + Math.PI / 2) * e.strafeDir * e.speed * 0.55 * dt;
+        e.y += Math.sin(e.angle + Math.PI / 2) * e.strafeDir * e.speed * 0.55 * dt;
       }
       e.shootTimer -= dt;
       if (e.shootTimer <= 0 && d < 380) {
-        fireBullet(combat, e.x, e.y, e.angle + (Math.random() - 0.5) * 0.14, false, 9);
-        e.shootTimer = 0.9 + Math.random() * 0.7;
+        fireBullet(combat, e.x, e.y, e.angle + (Math.random() - 0.5) * 0.14, false, e.damage ?? 9);
+        e.shootTimer = (e.fireDelay ?? 0.9) + Math.random() * 0.7;
       }
     }
     // Stay out of buildings: revert to the pre-move position on overlap.

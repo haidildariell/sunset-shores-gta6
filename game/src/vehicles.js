@@ -27,7 +27,11 @@ export function makeCar(typeIndex, x, y, angle, opts = {}) {
     driver: opts.driver ?? null, // 'traffic' | 'police' | 'player' | null (parked)
     stolen: false,
     honkTimer: 0,
+    honkDone: false,
     brakeLights: false,
+    // Nitro: 0..100, full when stolen, refills while not boosting.
+    nitro: CAR.nitroMax,
+    boosting: false,
     // Two collision circles along the body.
     radius: type.len / 2,
     dead: false,
@@ -45,9 +49,14 @@ export function carCircles(car) {
 }
 
 // Drive one car with throttle (-1..1) and steering (-1..1) for dt seconds.
-// Returns true when it scraped something solid.
-export function driveCar(city, car, throttle, steer, dt) {
-  const top = CAR.maxSpeed * car.type.speed;
+// opts.boost burns nitro for a top-speed jump. Returns true when it
+// scraped something solid.
+export function driveCar(city, car, throttle, steer, dt, opts = {}) {
+  const wantBoost = !!opts.boost && car.nitro > 0 && throttle > 0;
+  car.boosting = wantBoost;
+  if (wantBoost) car.nitro = Math.max(0, car.nitro - CAR.nitroDrain * dt);
+  else car.nitro = Math.min(CAR.nitroMax, car.nitro + CAR.nitroRefill * dt);
+  const top = CAR.maxSpeed * car.type.speed * (wantBoost ? CAR.nitroTopBoost : 1);
   const forwardX = Math.cos(car.angle);
   const forwardY = Math.sin(car.angle);
 
@@ -121,6 +130,13 @@ export function driveCar(city, car, throttle, steer, dt) {
     car.dead = true;
   }
   return scraped;
+}
+
+// Full repair at a garage: body back to 100 and a fresh nitro tank.
+export function repairCar(car) {
+  car.health = 100;
+  car.nitro = CAR.nitroMax;
+  car.boosting = false;
 }
 
 // Circle-circle push between two cars; returns the impact speed.

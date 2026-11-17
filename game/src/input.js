@@ -1,5 +1,7 @@
 // Keyboard and mouse input: a held-key set, edge-triggered actions, and the
 // mouse position in canvas pixels. The game reads this once per frame.
+// Q switches weapon, C cycles the radio, Shift is run on foot and nitro
+// behind the wheel; R retries a failed mission.
 
 export const ACTION_CONFIRM = 1 << 0;
 export const ACTION_PAUSE = 1 << 1;
@@ -9,6 +11,8 @@ export const ACTION_RUN = 1 << 4;
 export const ACTION_INTERACT = 1 << 5;
 export const ACTION_MUTE = 1 << 6;
 export const ACTION_RESTART = 1 << 7;
+export const ACTION_WEAPON = 1 << 8;
+export const ACTION_RADIO = 1 << 9;
 
 export function createInput(canvas) {
   const keys = new Set();
@@ -88,6 +92,8 @@ export function createInput(canvas) {
       if (was('KeyM')) actions |= ACTION_MUTE;
       if (was('KeyR')) actions |= ACTION_RESTART;
       if (was('KeyF')) actions |= ACTION_INTERACT;
+      if (was('KeyQ')) actions |= ACTION_WEAPON;
+      if (was('KeyC')) actions |= ACTION_RADIO;
       if (held('ShiftLeft') || held('ShiftRight')) actions |= ACTION_RUN;
       pressed.clear();
       return actions;

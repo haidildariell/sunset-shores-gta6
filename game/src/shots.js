@@ -4,11 +4,12 @@
 // ?shot=cover|drive|chase|mission with &seed=N.
 
 import { makeCar } from './vehicles.js';
-import { spawnEnemy } from './combat.js';
+import { spawnEnemy, spawnPickup } from './combat.js';
 import { makePedestrian } from './people.js';
 import { spawnTrafficCar } from './traffic.js';
 import { randomRoadPoint } from './city.js';
 import { MISSIONS } from './missions.js';
+import { spawnRoadblock } from './police.js';
 
 function clearWorld(world) {
   world.traffic.length = 0;
@@ -39,8 +40,16 @@ function seedStreet(world, rng, cx, cy, cars, peds) {
   for (let i = 0; i < 4; i += 1) {
     const spot = randomRoadPoint(world.city, rng, { x: cx, y: cy }, 600);
     if (Math.hypot(spot.x - cx, spot.y - cy) < 230) continue;
-    const car = makeCar(rng.int(0, 7), spot.x, spot.y, spot.vertical ? Math.PI / 2 : 0, { driver: null });
+    const car = makeCar(rng.int(0, 9), spot.x, spot.y, spot.vertical ? Math.PI / 2 : 0, { driver: null });
     world.parkedCars.push(car);
+  }
+  // Beach life: a couple of joggers on the sand when the scene is near it.
+  if (cy > 2000) {
+    for (let i = 0; i < 3; i += 1) {
+      const ped = makePedestrian(rng, cx, cy);
+      ped.role = 'jogger';
+      world.peds.push(ped);
+    }
   }
 }
 
@@ -55,6 +64,14 @@ function putPlayerInCar(world, typeIndex, x, y, angle, speed, color) {
   world.player.x = x;
   world.player.y = y;
   world.player.angle = angle;
+  return car;
+}
+
+// The hero car mid-nitro: flames on, tank half spent, speedo screaming.
+function putPlayerBoosting(world, typeIndex, x, y, angle, speed, color) {
+  const car = putPlayerInCar(world, typeIndex, x, y, angle, speed, color);
+  car.boosting = true;
+  car.nitro = 52;
   return car;
 }
 
@@ -94,13 +111,15 @@ export function stageShot(name, world, rng) {
 
   if (name === 'cover') {
     // The money shot: a sunset chase through downtown, wanted level 3,
-    // Mara's job on the HUD, the minimap lit up.
+    // Mara's job on the HUD, the minimap lit up — nitro lit, a roadblock
+    // ahead, the city alive around the hero car.
     const cx = city.roadsV[3];
     const cy = city.roadsH[2];
-    putPlayerInCar(world, 6, cx, cy, 0, 320);
+    putPlayerBoosting(world, 6, cx, cy, 0, 420);
     addPoliceCar(world, cx - 190, cy + 8, 0, 340);
     addPoliceCar(world, cx - 260, cy - 40, 0, 330);
     addPoliceCar(world, cx + 320, cy + 160, Math.PI, 300);
+    world.wanted.policeCars.push(...spawnRoadblock(rng, city, world.player));
     seedStreet(world, rng, cx, cy, 9, 8);
     setMission(world, 1, 2);
     world.wanted.level = 3;
@@ -111,9 +130,10 @@ export function stageShot(name, world, rng) {
   }
 
   if (name === 'drive') {
-    // Cruising the beachfront boulevard at speed, traffic ahead, sea right.
+    // Cruising the beachfront boulevard at speed, traffic ahead, sea right,
+    // joggers on the sand and the pier in frame.
     const beachRoad = city.roadsH[city.roadsH.length - 1];
-    putPlayerInCar(world, 7, 1500, beachRoad, 0, 430);
+    putPlayerBoosting(world, 7, 1500, beachRoad, 0, 480);
     seedStreet(world, rng, 1500, beachRoad, 7, 10);
     setMission(world, 0, 1);
     world.marker = { x: city.places.chopShop.x, y: city.places.chopShop.y, color: '#ffd23c', label: 'FIRST WHEELS' };
@@ -123,14 +143,16 @@ export function stageShot(name, world, rng) {
   }
 
   if (name === 'chase') {
-    // Full heat: four stars, police boxing the player in, downtown grid.
+    // Full heat: four stars, police boxing the player in, a roadblock ahead,
+    // downtown grid, the Heat Wave timer ticking.
     const cx = city.roadsV[4];
     const cy = city.roadsH[3];
-    putPlayerInCar(world, 7, cx, cy, Math.PI / 2, 380);
+    putPlayerBoosting(world, 7, cx, cy, Math.PI / 2, 430);
     addPoliceCar(world, cx - 30, cy - 240, Math.PI / 2, 420);
     addPoliceCar(world, cx + 60, cy - 320, Math.PI / 2, 400);
     addPoliceCar(world, cx - 200, cy + 120, 0, 380);
     addPoliceCar(world, cx + 240, cy + 60, Math.PI, 360);
+    world.wanted.policeCars.push(...spawnRoadblock(rng, city, world.player));
     seedStreet(world, rng, cx, cy, 8, 6);
     setMission(world, 4, 0);
     world.mission.timer = 41;
@@ -141,17 +163,20 @@ export function stageShot(name, world, rng) {
     return { time: 0.7 };
   }
 
-  // mission: on foot at the docks, Viper guards up, case to grab.
+  // mission: on foot at the docks, Viper guards up, an Enforcer among them,
+  // a shotgun pickup on the ground, case to grab.
   const d = city.places.docks;
   p.x = d.x - 190;
   p.y = d.y + 90;
   p.angle = 0.3;
   p.ammo = 24;
   p.health = 78;
+  p.weapon = 'shotgun';
   spawnEnemy(world.combat, d.x - 60, d.y - 40, 'Viper');
   spawnEnemy(world.combat, d.x + 40, d.y - 70, 'Viper');
   spawnEnemy(world.combat, d.x - 20, d.y + 60, 'Viper');
-  spawnEnemy(world.combat, d.x + 90, d.y + 30, 'Viper');
+  spawnEnemy(world.combat, d.x + 90, d.y + 30, 'Enforcer');
+  spawnPickup(world.combat, d.x - 140, d.y + 140, 'ammo', 24);
   seedStreet(world, rng, d.x, d.y, 3, 2);
   setMission(world, 3, 1);
   world.wanted.level = 1;

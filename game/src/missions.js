@@ -1,6 +1,6 @@
 // Missions and the story of Sunset Shores. Dario "Daz" Cole, a delivery
 // driver who owes the wrong people money, gets pulled into Mara Quinn's
-// crew. Six jobs, each a chain of small steps the runner checks every
+// crew. Seven jobs, each a chain of small steps the runner checks every
 // frame: reach a place, steal a car, survive the heat, clear the guards.
 
 import { MISSION_REWARDS } from './config.js';
@@ -127,6 +127,28 @@ export const MISSIONS = [
       },
       { type: 'pickup', place: 'bank', radius: 44, text: 'Grab the bank cash', heat: 3 },
       { type: 'gotoCar', place: 'safehouse', radius: 110, text: 'Escape to the safehouse' },
+    ],
+  },
+  {
+    id: 'lighthouse-run',
+    title: 'The Lighthouse Run',
+    giver: 'Mara Quinn',
+    intro: [
+      'MARA: Debt is gone, Daz — but the PD just lit up the whole city.',
+      'MARA: Five stars. Every cruiser in Palmera Bay is coming for you.',
+      'MARA: Drive to the Old Lighthouse. My boat is waiting at the pier.',
+      'MARA: One hundred seconds. Nitro is your friend. Go.',
+    ],
+    reward: MISSION_REWARDS[6],
+    steps: [
+      {
+        type: 'timed', place: 'lighthouse', radius: 130, seconds: 100,
+        text: 'Outrun five stars — reach the Old Lighthouse in 100 seconds',
+        start: (ctx) => {
+          ctx.addHeat(5);
+          ctx.say('MARA: Five stars! Drive like the sunset depends on it!');
+        },
+      },
     ],
   },
 ];
@@ -269,6 +291,7 @@ export function makeCourierJob(rng, city) {
   const spots = [
     city.places.docks, city.places.bank, city.places.beachBar,
     city.places.motel, city.places.hospital, city.places.chopShop,
+    city.places.lighthouse, city.places.stadium, city.places.pier,
   ];
   const a = spots[rng.int(0, spots.length - 1)];
   let b = spots[rng.int(0, spots.length - 1)];
