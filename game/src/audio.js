@@ -198,6 +198,16 @@ export function createAudio() {
     missionComplete() {
       [523, 659, 784, 1047].forEach((f, i) => window.setTimeout(() => blip(f, 0.22, 'triangle', 0.2), i * 110));
     },
+    // Boss sting: a low dramatic hit when Rook steps out at the Bowl.
+    sting() {
+      blip(98, 0.6, 'sawtooth', 0.22, 49);
+      window.setTimeout(() => blip(147, 0.4, 'sawtooth', 0.15, 73), 140);
+      noiseBurst(0.3, 0.2, 900);
+    },
+    // Story fanfare: the full ascending run when Palmera Bay is yours.
+    fanfare() {
+      [523, 659, 784, 1047, 1319].forEach((f, i) => window.setTimeout(() => blip(f, 0.3, 'triangle', 0.2), i * 130));
+    },
     missionFail() {
       [392, 330, 262].forEach((f, i) => window.setTimeout(() => blip(f, 0.3, 'sawtooth', 0.12), i * 140));
     },

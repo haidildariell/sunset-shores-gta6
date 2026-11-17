@@ -1,7 +1,8 @@
 // Missions and the story of Sunset Shores. Dario "Daz" Cole, a delivery
 // driver who owes the wrong people money, gets pulled into Mara Quinn's
-// crew. Eight jobs now: the story ends with the Harbor Heist, a gold
-// shipment guarded by Bruisers at the docks and a four-star run to the pier.
+// crew. Nine jobs now: the story ends with the Sunset Showdown, a boss
+// fight against Rook at the Palmera Bowl and a five-star run to the
+// lighthouse — the Harbor Heist was only the second-to-last job.
 
 import { MISSION_REWARDS } from './config.js';
 import { spawnEnemy, spawnPickup } from './combat.js';
@@ -191,6 +192,46 @@ export const MISSIONS = [
       },
     ],
   },
+  {
+    id: 'sunset-showdown',
+    title: 'The Sunset Showdown',
+    giver: 'Mara Quinn',
+    intro: [
+      'MARA: One loose end, Daz. Rook — the man who hired the harbor crew.',
+      'MARA: He is holding court at the Palmera Bowl with his Enforcers.',
+      'MARA: Take him down, grab his ledger, and vanish before the whole PD arrives.',
+      'MARA: Do this and we own Palmera Bay. All of it. For good this time.',
+    ],
+    reward: MISSION_REWARDS[8],
+    steps: [
+      { type: 'goto', place: 'stadium', radius: 170, text: 'Reach the Palmera Bowl' },
+      {
+        type: 'killAll', text: 'Take down Rook and his Enforcers (5)',
+        start: (ctx) => {
+          const s = ctx.city.places.stadium;
+          spawnEnemy(ctx.combat, s.x - 40, s.y - 20, 'Rook');
+          spawnEnemy(ctx.combat, s.x + 60, s.y - 50, 'Enforcer');
+          spawnEnemy(ctx.combat, s.x - 70, s.y + 50, 'Enforcer');
+          spawnEnemy(ctx.combat, s.x + 80, s.y + 40, 'Viper');
+          spawnEnemy(ctx.combat, s.x + 10, s.y - 90, 'Viper');
+          spawnPickup(ctx.combat, s.x - 130, s.y + 90, 'health', 40);
+          spawnPickup(ctx.combat, s.x + 140, s.y - 100, 'ammo', 24);
+          spawnPickup(ctx.combat, s.x + 40, s.y + 120, 'ammo', 24);
+          ctx.audio.sting();
+          ctx.say('MARA: Rook is the big one in gold. Drop him first — the rest will scatter.');
+        },
+      },
+      {
+        type: 'pickup', place: 'stadium', radius: 44, text: 'Grab Rook\'s ledger', heat: 3,
+        start: (ctx) => { ctx.say('MARA: Ledger secured! Three stars — the PD is coming. Run!'); },
+      },
+      {
+        type: 'timed', place: 'lighthouse', radius: 130, seconds: 120,
+        text: 'Escape to the Old Lighthouse — 120 seconds',
+        start: (ctx) => { ctx.say('MARA: Boat is at the lighthouse pier. This is the last drive, Daz!'); },
+      },
+    ],
+  },
 ];
 
 // --- Runner ---------------------------------------------------------------
@@ -243,11 +284,13 @@ export function updateMission(ctx, state, dt) {
     // Mission complete.
     state.index += 1;
     ctx.player.cash += m.reward;
+    ctx.player.totalEarned = (ctx.player.totalEarned ?? 0) + m.reward;
     ctx.audio.missionComplete();
     ctx.say(`Job done. +$${m.reward}.`);
     ctx.events.push({ type: 'mission-complete', mission: m.id, reward: m.reward });
     if (state.index >= MISSIONS.length) {
       state.done = true;
+      ctx.audio.fanfare();
       ctx.say('Story complete. Palmera Bay is yours — free roam.');
       ctx.events.push({ type: 'story-complete' });
     } else {
@@ -332,7 +375,7 @@ export function makeCourierJob(rng, city) {
     city.places.docks, city.places.bank, city.places.beachBar,
     city.places.motel, city.places.hospital, city.places.chopShop,
     city.places.lighthouse, city.places.stadium, city.places.pier,
-    city.places.marina,
+    city.places.marina, city.places.casino,
   ];
   const a = spots[rng.int(0, spots.length - 1)];
   let b = spots[rng.int(0, spots.length - 1)];

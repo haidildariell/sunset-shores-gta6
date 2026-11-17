@@ -1,10 +1,10 @@
-// Sunset Shores entrypoint v3 (Node 22, standard library only): hands the
+// Sunset Shores entrypoint v4 (Node 22, standard library only): hands the
 // game in. It copies this repository's game/ and screenshots/ beside this
 // file to /output and writes /output/dossier.json, the summary the judge
 // reads, with the vendored make.fun library. The game itself is plain static
 // files a desktop browser loads offline: game/index.html and its ES modules,
-// no library and no network request. v3: eight jobs ending in the Harbor
-// Heist, SMG, handbrake, rush-hour traffic, smarter police, a marina.
+// no library and no network request. v4: nine jobs ending in the Sunset
+// Showdown boss fight, a fifth radio station, limo and bus traffic, a casino.
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
@@ -48,5 +48,5 @@ const shotCount = existsSync(join(out, 'screenshots'))
   : 0;
 // A run with fewer than 3 screenshots cannot be a valid entry: fail loudly
 // instead of handing in a dossier the gate would refuse.
-if (shotCount < 3) throw new Error(`Sunset Shores v3 needs at least 3 screenshots, found ${shotCount}.`);
-console.log(`Sunset Shores v3 handed in: dossier.json ${dossierBytes} bytes, ${shotCount} screenshots.`);
+if (shotCount < 3) throw new Error(`Sunset Shores v4 needs at least 3 screenshots, found ${shotCount}.`);
+console.log(`Sunset Shores v4 handed in: dossier.json ${dossierBytes} bytes, ${shotCount} screenshots.`);

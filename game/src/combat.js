@@ -1,7 +1,9 @@
 // Combat: fists, three guns (pistol, a Q-cycled shotgun and a rapid SMG),
 // bullets, armed enemies, and the pickups (health, ammo, cash) the city
 // leaves around. Enemies only exist inside missions; the street itself
-// stays a place to walk, not a warzone.
+// stays a place to walk, not a warzone. v4: Rook, the Sunset Showdown
+// boss — a gold-ringed heavy who pays $500 in cash when he goes down,
+// and fallen enemies sometimes drop the ammo they were carrying.
 
 import { PLAYER, WEAPONS } from './config.js';
 
@@ -25,6 +27,10 @@ const ENEMY_KINDS = {
   Enforcer: { health: 130, speed: 175, damage: 12, fireDelay: 0.6 },
   // Bruiser: the harbor crew's heavy in the finale — slow, tanky, hard-hitting.
   Bruiser: { health: 210, speed: 138, damage: 14, fireDelay: 0.75 },
+  // Rook: the Sunset Showdown boss — the man who hired the harbor crew.
+  // Fast trigger, heavy hits, and a gold ring in the renderer so the
+  // player always knows which one he is. Drops $500 cash when he falls.
+  Rook: { health: 320, speed: 160, damage: 16, fireDelay: 0.55, boss: true },
 };
 
 export function spawnEnemy(combat, x, y, name) {
@@ -42,6 +48,8 @@ export function spawnEnemy(combat, x, y, name) {
     shootTimer: 1 + Math.random() * 1.5,
     shotsFired: 0, // burst counter: four shots, then a reload pause
     strafeDir: Math.random() < 0.5 ? 1 : -1,
+    boss: !!kind.boss, // the renderer rings bosses in gold; the HUD bars them
+    maxHealth: kind.health, // the HUD bar reads this, never the live value
     name: name ?? 'Rival',
     dead: false,
     walkPhase: Math.random() * 6,
@@ -191,6 +199,14 @@ export function updateEnemies(city, combat, dt, player, onPlayerHit) {
     if (e.health <= 0) {
       e.dead = true;
       addParticles(combat, e.x, e.y, '#e63229', 16, 180);
+      if (e.boss) {
+        // The boss pays out: $500 in cash on the ground, in gold sparks.
+        spawnPickup(combat, e.x, e.y, 'cash', 500);
+        addParticles(combat, e.x, e.y, '#ffd23c', 24, 220);
+      } else if (Math.random() < 0.5) {
+        // Half the fallen drop the ammo they were carrying.
+        spawnPickup(combat, e.x, e.y, 'ammo', 12);
+      }
       continue;
     }
     const d = Math.hypot(player.x - e.x, player.y - e.y);

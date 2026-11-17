@@ -528,6 +528,10 @@ function step(dt, input, actions) {
     } else if (p.kind === 'ammo') {
       player.ammo += p.value;
       say(`Ammo +${p.value}.`);
+    } else if (p.kind === 'cash') {
+      player.cash += p.value;
+      player.totalEarned = (player.totalEarned ?? 0) + p.value;
+      say(`Cash +$${p.value}.`);
     }
     audio.pickup();
   });

@@ -30,9 +30,10 @@ export const PLACES = {
   pitStop: { x: 2320, y: 2050, name: 'Pit Stop Garage' },
   pier: { x: PIER_X, y: 2560, name: 'Palmera Pier' },
   marina: { x: 2900, y: 2500, name: 'Palmera Marina' },
+  casino: { x: 1900, y: 1580, name: 'Palmera Casino' },
 };
 
-const ROOF_COLORS = [PALETTE.roofA, PALETTE.roofB, PALETTE.roofC, PALETTE.roofD];
+const ROOF_COLORS = [PALETTE.roofA, PALETTE.roofB, PALETTE.roofC, PALETTE.roofD, PALETTE.roofE];
 
 export function buildCity(rng) {
   const roadsV = []; // x centres of vertical roads
@@ -47,6 +48,14 @@ export function buildCity(rng) {
 
   // Park block: the block around the safehouse stays green.
   const parkBlock = { bx: 4, by: 2 };
+  // Park lawn block: the green lawn, paths, pond and fountain the
+  // renderer paints around the safehouse — a generated building here
+  // used to grow straight through the fountain.
+  const parkLawnBlock = { bx: 3, by: 1 };
+  // Casino block: the Palmera Casino owns this block outright, so no
+  // generated building, street tree or parking lot ever grows through
+  // its walls, its plaza or its fountain.
+  const casinoBlock = { bx: 3, by: 2 };
 
   for (let by = 0; by < roadsH.length; by += 1) {
     for (let bx = 0; bx < roadsV.length; bx += 1) {
@@ -66,6 +75,8 @@ export function buildCity(rng) {
         }
         continue;
       }
+      if (bx === casinoBlock.bx && by === casinoBlock.by) continue;
+      if (bx === parkLawnBlock.bx && by === parkLawnBlock.by) continue;
       // One or two buildings per block, with a gap for an alley / lot.
       const split = rng.chance(0.55);
       const lots = split
@@ -133,7 +144,8 @@ export function buildCity(rng) {
     });
   }
 
-  // Yachts moored at the marina, and the park fountain: fixed per seed.
+  // Yachts moored at the marina, and the fountains: one in the park, one
+  // on the casino plaza — the renderer paints every fountain in this list.
   const boats = [];
   for (let i = 0; i < 3; i += 1) {
     boats.push({
@@ -143,7 +155,19 @@ export function buildCity(rng) {
       len: 110 + i * 14,
     });
   }
-  const fountains = [{ x: PLACES.park.x, y: PLACES.park.y, r: 34 }];
+  const fountains = [
+    { x: PLACES.park.x, y: PLACES.park.y, r: 34 },
+    { x: PLACES.casino.x, y: PLACES.casino.y, r: 20 },
+  ];
+
+  // The Palmera Casino: a real building in the list (so it collides like
+  // any other) on its own cleared block — no generated building shares
+  // the plot. Its plaza front is the meeting point couriers and the
+  // minimap use.
+  buildings.push({
+    x: 1820, y: 1400, w: 160, h: 130,
+    roof: '#c9a227', tall: false, windows: 3, casino: true,
+  });
 
   const city = {
     roadsV,

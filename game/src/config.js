@@ -1,8 +1,9 @@
 // Tuning, palette and shared constants for Sunset Shores.
 // One job: every number the rest of the game agrees on lives here.
-// v3: eight jobs, a third weapon (SMG), a fourth radio station, rush hour.
+// v4: nine jobs ending in the Sunset Showdown, a fifth radio station,
+// a limo and a city bus in traffic, a casino on the plaza.
 
-export const GAME_VERSION = 'v3';
+export const GAME_VERSION = 'v4';
 
 // World geometry (world units are roughly metres).
 export const WORLD_W = 3600;
@@ -31,6 +32,7 @@ export const PALETTE = {
   roofB: '#7d8aa0',
   roofC: '#d9a441',
   roofD: '#8a6f5c',
+  roofE: '#b85c8a',
   buildingEdge: '#00000033',
   parkPath: '#cbb98d',
 };
@@ -75,12 +77,13 @@ export const WEAPONS = {
   smg: { name: 'SMG', damage: 22, range: 380, cooldown: 0.09, pellets: 1, spread: 0.03, ammoCost: 1 },
 };
 
-// Radio stations: four procedural grooves, C cycles them.
+// Radio stations: five procedural grooves, C cycles them.
 export const RADIO_STATIONS = [
   { name: 'SUNSET FM', bpm: 112, bass: [55, 0, 55, 65.41, 55, 0, 49, 58.27], lead: [220, 0, 0, 0, 220, 0, 262, 0] },
   { name: 'PALM ROCK', bpm: 132, bass: [82.41, 82.41, 0, 98, 82.41, 0, 73.42, 98], lead: [330, 0, 392, 0, 330, 0, 294, 0] },
   { name: 'BAY BEATS', bpm: 96, bass: [49, 0, 0, 58.27, 0, 49, 0, 65.41], lead: [0, 262, 0, 330, 0, 0, 392, 0] },
   { name: 'NEON NIGHTS', bpm: 120, bass: [65.41, 0, 65.41, 0, 82.41, 0, 98, 0], lead: [392, 0, 0, 330, 0, 392, 0, 440] },
+  { name: 'COAST CRUISE', bpm: 100, bass: [65.41, 0, 0, 82.41, 0, 65.41, 0, 98], lead: [0, 0, 330, 0, 392, 0, 0, 330] },
 ];
 
 // Wanted: how much heat each crime adds, and how the police answer.
@@ -113,6 +116,8 @@ export const CAR_TYPES = [
   { name: 'SUV', len: 84, wid: 40, speed: 0.98, colors: ['#2e2e33', '#d8d3c8', '#3f6fb5', '#5b6770'] },
   { name: 'Convertible', len: 72, wid: 35, speed: 1.22, colors: ['#e63229', '#f2c200', '#e67ba8', '#5aa9e6'] },
   { name: 'Classic', len: 80, wid: 38, speed: 1.08, colors: ['#8a6f5c', '#2e5d8a', '#d8d3c8', '#5b6770'] },
+  { name: 'Limo', len: 100, wid: 38, speed: 1.05, colors: ['#1a1a20', '#d8d3c8', '#2e5d8a'] },
+  { name: 'Bus', len: 106, wid: 42, speed: 0.78, colors: ['#2e6b8a', '#c98a2e', '#5b6770'] },
 ];
 
 // Steering sharpness per body type: sports cars bite, vans wallow.
@@ -129,6 +134,8 @@ export const HANDLING = {
   Pickup: 0.9,
   SUV: 0.9,
   Van: 0.85,
+  Limo: 0.92,
+  Bus: 0.8,
 };
 
 // Pedestrian first names the city reuses (flavour only, no real people).
@@ -144,8 +151,8 @@ export const PED_SHIRTS = [
   '#d97b29', '#5aa9e6', '#8a9a5b', '#e67ba8', '#6b4a8a', '#2e2e33',
 ];
 
-// Mission cash rewards, in order (eight jobs now — the Harbor Heist pays $5,000).
-export const MISSION_REWARDS = [300, 500, 700, 900, 1200, 2500, 3500, 5000];
+// Mission cash rewards, in order (nine jobs now — the Sunset Showdown pays $8,000).
+export const MISSION_REWARDS = [300, 500, 700, 900, 1200, 2500, 3500, 5000, 8000];
 
 export const RESPRAY_COST = 200;
 export const PITSTOP_COST = 100; // full repair at the Pit Stop garage

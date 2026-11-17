@@ -148,6 +148,28 @@ export function drawHud(ctx, world, screen, time) {
 
   drawMinimap(ctx, world, w, h, time);
 
+  // Boss bar, top-centre under the mission bar: Rook's health, in gold,
+  // while he is still standing.
+  const boss = world.combat?.enemies.find((e) => e.boss && !e.dead);
+  if (boss) {
+    const bw = 260;
+    const bx = w / 2 - bw / 2;
+    const by = ms.index < MISSIONS.length && !ms.done ? 72 : 50;
+    ctx.fillStyle = 'rgba(10,12,16,0.72)';
+    ctx.fillRect(bx - 10, by - 4, bw + 20, 30);
+    ctx.strokeStyle = 'rgba(255,210,60,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(bx - 10, by - 4, bw + 20, 30);
+    ctx.fillStyle = '#ffd23c';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ROOK', w / 2, by + 8);
+    ctx.fillStyle = '#3a2a10';
+    ctx.fillRect(bx, by + 12, bw, 8);
+    ctx.fillStyle = '#ffd23c';
+    ctx.fillRect(bx, by + 12, bw * Math.max(0, boss.health / (boss.maxHealth || 1)), 8);
+  }
+
   // Mission objective bar, top-centre.
   const mission = MISSIONS[ms.index];
   if (mission && !ms.done) {

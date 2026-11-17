@@ -160,19 +160,30 @@ function paintGround(city) {
   g.beginPath();
   g.arc(park.x + 90, park.y + 90, 42, 0, Math.PI * 2);
   g.fill();
-  // Fountain: stone rim, blue water, a pale jet in the middle.
-  g.fillStyle = '#8d8578';
-  g.beginPath();
-  g.arc(park.x, park.y, 34, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = '#5fa8c9';
-  g.beginPath();
-  g.arc(park.x, park.y, 27, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = '#cfe9f5';
-  g.beginPath();
-  g.arc(park.x, park.y, 9, 0, Math.PI * 2);
-  g.fill();
+  // Fountains: one in the park, one on the casino plaza — every entry in
+  // the city's list gets a stone rim, blue water and a pale jet.
+  for (const f of city.fountains) {
+    g.fillStyle = '#8d8578';
+    g.beginPath();
+    g.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#5fa8c9';
+    g.beginPath();
+    g.arc(f.x, f.y, f.r - 7, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#cfe9f5';
+    g.beginPath();
+    g.arc(f.x, f.y, Math.max(5, f.r - 18), 0, Math.PI * 2);
+    g.fill();
+  }
+
+  // Casino plaza: gold paving in front of the Palmera Casino, so the
+  // building the city list carries reads as a landmark, not a roof.
+  g.fillStyle = '#cbb98d';
+  g.fillRect(1780, 1380, 240, 240);
+  g.strokeStyle = 'rgba(0,0,0,0.25)';
+  g.lineWidth = 2;
+  g.strokeRect(1780, 1380, 240, 240);
 
   // Marina: wooden docks reaching into the bay, yachts moored alongside.
   g.fillStyle = '#7a5a38';
@@ -240,6 +251,18 @@ function paintGround(city) {
     const n = 1 + (b.windows % 3);
     for (let i = 0; i < n; i += 1) {
       g.fillRect(b.x + 14 + i * 26, b.y + 14, 16, 12);
+    }
+    if (b.casino) {
+      // The casino reads as a landmark: gold trim and a lit sign.
+      g.strokeStyle = '#ffd23c';
+      g.lineWidth = 4;
+      g.strokeRect(b.x + 4, b.y + 4, b.w - 8, b.h - 8);
+      g.fillStyle = '#1a1210';
+      g.fillRect(b.x + b.w / 2 - 52, b.y + b.h / 2 - 14, 104, 28);
+      g.fillStyle = '#ffd23c';
+      g.font = 'bold 17px sans-serif';
+      g.textAlign = 'center';
+      g.fillText('CASINO', b.x + b.w / 2, b.y + b.h / 2 + 6);
     }
   }
 
@@ -326,6 +349,25 @@ export function createRenderer(canvas, city) {
     }
     // Windshield + roof + rear window. Convertibles run open-top: no roof
     // panel, just the cabin and two headrests catching the sunset.
+    // Buses get a row of passenger windows; limos a long roof with a divider.
+    if (t.name === 'Bus') {
+      ctx.fillStyle = 'rgba(20,28,38,0.85)';
+      for (let i = 0; i < 4; i += 1) {
+        roundRect(ctx, -t.len / 2 + 12 + i * 22, -t.wid / 2 + 6, 14, t.wid - 12, 3);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#f2c200';
+      ctx.fillRect(-t.len / 2 + 8, -t.wid / 2 + 2, 30, 4);
+    } else if (t.name === 'Limo') {
+      ctx.fillStyle = 'rgba(20,28,38,0.85)';
+      roundRect(ctx, t.len / 2 - 22, -t.wid / 2 + 5, 12, t.wid - 10, 4);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      roundRect(ctx, -t.len / 2 + 10, -t.wid / 2 + 6, t.len - 34, t.wid - 12, 5);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(-2, -t.wid / 2 + 6, 3, t.wid - 12);
+    }
     ctx.fillStyle = 'rgba(20,28,38,0.85)';
     roundRect(ctx, t.len / 2 - 20, -t.wid / 2 + 5, 12, t.wid - 10, 4);
     ctx.fill();
@@ -335,7 +377,9 @@ export function createRenderer(canvas, city) {
       ctx.fillStyle = '#2e2e33';
       ctx.fillRect(-12, -t.wid / 2 + 7, 6, 5);
       ctx.fillRect(-12, t.wid / 2 - 12, 6, 5);
-    } else {
+    } else if (t.name !== 'Bus') {
+      // Buses already wear their window row as the roof treatment; a
+      // generic panel over it would stripe straight through the glass.
       ctx.fillStyle = 'rgba(255,255,255,0.18)';
       roundRect(ctx, -8, -t.wid / 2 + 6, 18, t.wid - 12, 5);
       ctx.fill();
@@ -432,6 +476,19 @@ export function createRenderer(canvas, city) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 17 + Math.sin(time * 4) * 1.5, 0, Math.PI * 2);
       ctx.stroke();
+    }
+    if (p.boss) {
+      // The boss wears a pulsing gold ring: Rook is never mistaken for
+      // one of his Enforcers.
+      ctx.strokeStyle = '#ffd23c';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 21 + Math.sin(time * 3) * 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#ffd23c';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('ROOK', p.x, p.y - 26);
     }
     if (p.scared) {
       ctx.fillStyle = '#fff';
