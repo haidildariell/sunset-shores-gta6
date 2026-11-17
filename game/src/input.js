@@ -13,6 +13,7 @@ export const ACTION_MUTE = 1 << 6;
 export const ACTION_RESTART = 1 << 7;
 export const ACTION_WEAPON = 1 << 8;
 export const ACTION_RADIO = 1 << 9;
+export const ACTION_HANDBRAKE = 1 << 10; // Space held while driving: slide the tail out
 
 export function createInput(canvas) {
   const keys = new Set();
@@ -95,6 +96,7 @@ export function createInput(canvas) {
       if (was('KeyQ')) actions |= ACTION_WEAPON;
       if (was('KeyC')) actions |= ACTION_RADIO;
       if (held('ShiftLeft') || held('ShiftRight')) actions |= ACTION_RUN;
+      if (held('Space')) actions |= ACTION_HANDBRAKE;
       pressed.clear();
       return actions;
     },

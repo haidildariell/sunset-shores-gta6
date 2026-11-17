@@ -2,7 +2,7 @@
 // A car is an oriented rectangle; physics runs on a velocity vector with
 // steering, grip and drag, so driving feels weighty but forgiving.
 
-import { CAR, CAR_TYPES } from './config.js';
+import { CAR, CAR_TYPES, HANDLING } from './config.js';
 import { collideSolids } from './city.js';
 
 let nextCarId = 1;
@@ -32,6 +32,10 @@ export function makeCar(typeIndex, x, y, angle, opts = {}) {
     // Nitro: 0..100, full when stolen, refills while not boosting.
     nitro: CAR.nitroMax,
     boosting: false,
+    // Handling factor from the type (sports cars turn sharper, vans wallow).
+    handling: HANDLING[type.name] ?? 1,
+    // Top-speed multiplier the police set per wanted level (1 for civilians).
+    speedFactor: 1,
     // Two collision circles along the body.
     radius: type.len / 2,
     dead: false,
@@ -56,13 +60,15 @@ export function driveCar(city, car, throttle, steer, dt, opts = {}) {
   car.boosting = wantBoost;
   if (wantBoost) car.nitro = Math.max(0, car.nitro - CAR.nitroDrain * dt);
   else car.nitro = Math.min(CAR.nitroMax, car.nitro + CAR.nitroRefill * dt);
-  const top = CAR.maxSpeed * car.type.speed * (wantBoost ? CAR.nitroTopBoost : 1);
+  // Handbrake: the tail steps out — sharper turn, weaker grip, more drag.
+  const handbrake = !!opts.handbrake;
+  const top = CAR.maxSpeed * car.type.speed * (car.speedFactor ?? 1) * (wantBoost ? CAR.nitroTopBoost : 1);
   const forwardX = Math.cos(car.angle);
   const forwardY = Math.sin(car.angle);
 
   // Steering only bites while moving, and sharper at low speed.
   const speedFactor = Math.min(1, Math.abs(car.speed) / 140 + 0.25);
-  const steerRate = CAR.steer * speedFactor * Math.sign(car.speed || 1);
+  const steerRate = CAR.steer * speedFactor * (car.handling ?? 1) * (handbrake ? 1.5 : 1) * Math.sign(car.speed || 1);
   car.angle += steer * steerRate * dt * (car.speed >= 0 ? 1 : -1);
 
   if (throttle > 0) car.speed += CAR.accel * throttle * dt;
@@ -70,8 +76,8 @@ export function driveCar(city, car, throttle, steer, dt, opts = {}) {
     if (car.speed > 12) car.speed += CAR.brake * throttle * dt; // brake
     else car.speed += CAR.reverseAccel * throttle * dt; // reverse
   }
-  // Drag + rolling resistance.
-  car.speed -= car.speed * CAR.drag * dt;
+  // Drag + rolling resistance; the handbrake scrubs speed off fast.
+  car.speed -= car.speed * (CAR.drag + (handbrake ? 0.9 : 0)) * dt;
   if (Math.abs(car.speed) < 4 && throttle === 0) car.speed = 0;
   car.speed = Math.max(-CAR.maxReverse, Math.min(top, car.speed));
 
@@ -80,7 +86,7 @@ export function driveCar(city, car, throttle, steer, dt, opts = {}) {
   // Blend velocity toward the heading: grip kills sideways slide.
   const targetVx = nx * car.speed;
   const targetVy = ny * car.speed;
-  const grip = Math.min(1, CAR.grip * dt);
+  const grip = Math.min(1, CAR.grip * (handbrake ? 0.45 : 1) * dt);
   car.vx += (targetVx - car.vx) * grip;
   car.vy += (targetVy - car.vy) * grip;
 

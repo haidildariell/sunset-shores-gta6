@@ -6,13 +6,23 @@ import { CAR_TYPES, ROAD_W } from './config.js';
 import { collideCars, driveCar, makeCar } from './vehicles.js';
 import { randomRoadPoint } from './city.js';
 
+// Rush hour: 17:00–19:00 the streets fill up — more cars, slower cruise.
+export function rushHourBonus(clockMinutes) {
+  return clockMinutes >= 17 * 60 && clockMinutes < 19 * 60 ? 6 : 0;
+}
+
+export function isRushHour(clockMinutes) {
+  return rushHourBonus(clockMinutes) > 0;
+}
+
 // Spawn a traffic car on a road near a point, already rolling.
-export function spawnTrafficCar(rng, city, near, radius) {
+export function spawnTrafficCar(rng, city, near, radius, rush = false) {
   const spot = randomRoadPoint(city, rng, near, radius);
   const type = rng.int(0, CAR_TYPES.length - 1);
   const car = makeCar(type, spot.x, spot.y, spot.vertical ? Math.PI / 2 : 0, { driver: 'traffic' });
   car.speed = rng.range(120, 210);
-  car.cruise = rng.range(140, 230);
+  // Congestion: rush-hour drivers crawl a little slower.
+  car.cruise = rng.range(140, 230) * (rush ? 0.82 : 1);
   car.laneSide = rng.chance(0.5) ? 1 : -1;
   return car;
 }
@@ -97,7 +107,7 @@ export function updateTrafficCar(city, rng, car, dt, others, playerCar) {
   // Brake lights show the slowdown; a blocked driver leans on the horn.
   car.brakeLights = throttle < 0;
   if (blocked && car.speed < 40 && car.honkTimer <= 0) {
-    car.honkTimer = 0.9;
+    car.honkTimer = 0.6 + Math.random() * 0.9;
     car.honkDone = false;
   }
   if (car.honkTimer > 0) car.honkTimer -= dt;

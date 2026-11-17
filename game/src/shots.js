@@ -115,7 +115,7 @@ export function stageShot(name, world, rng) {
     // ahead, the city alive around the hero car.
     const cx = city.roadsV[3];
     const cy = city.roadsH[2];
-    putPlayerBoosting(world, 6, cx, cy, 0, 420);
+    putPlayerBoosting(world, 10, cx, cy, 0, 420);
     addPoliceCar(world, cx - 190, cy + 8, 0, 340);
     addPoliceCar(world, cx - 260, cy - 40, 0, 330);
     addPoliceCar(world, cx + 320, cy + 160, Math.PI, 300);
@@ -131,10 +131,10 @@ export function stageShot(name, world, rng) {
 
   if (name === 'drive') {
     // Cruising the beachfront boulevard at speed, traffic ahead, sea right,
-    // joggers on the sand and the pier in frame.
+    // joggers on the sand and the pier in frame — rush-hour density.
     const beachRoad = city.roadsH[city.roadsH.length - 1];
     putPlayerBoosting(world, 7, 1500, beachRoad, 0, 480);
-    seedStreet(world, rng, 1500, beachRoad, 7, 10);
+    seedStreet(world, rng, 1500, beachRoad, 10, 12);
     setMission(world, 0, 1);
     world.marker = { x: city.places.chopShop.x, y: city.places.chopShop.y, color: '#ffd23c', label: 'FIRST WHEELS' };
     world.dialogue = 'MARA: Nice wheels. Now bring it to Rico — chop shop, north side.';
@@ -152,6 +152,7 @@ export function stageShot(name, world, rng) {
     addPoliceCar(world, cx + 60, cy - 320, Math.PI / 2, 400);
     addPoliceCar(world, cx - 200, cy + 120, 0, 380);
     addPoliceCar(world, cx + 240, cy + 60, Math.PI, 360);
+    addPoliceCar(world, cx + 120, cy + 300, Math.PI / 2, 410);
     world.wanted.policeCars.push(...spawnRoadblock(rng, city, world.player));
     seedStreet(world, rng, cx, cy, 8, 6);
     setMission(world, 4, 0);
@@ -163,25 +164,28 @@ export function stageShot(name, world, rng) {
     return { time: 0.7 };
   }
 
-  // mission: on foot at the docks, Viper guards up, an Enforcer among them,
-  // a shotgun pickup on the ground, case to grab.
+  // mission: on foot at the docks for the Harbor Heist finale — a Bruiser
+  // and Enforcers guarding the gold, an ammo pickup on the ground, four
+  // stars already burning and the pier as the way out.
   const d = city.places.docks;
   p.x = d.x - 190;
   p.y = d.y + 90;
   p.angle = 0.3;
   p.ammo = 24;
   p.health = 78;
-  p.weapon = 'shotgun';
-  spawnEnemy(world.combat, d.x - 60, d.y - 40, 'Viper');
-  spawnEnemy(world.combat, d.x + 40, d.y - 70, 'Viper');
-  spawnEnemy(world.combat, d.x - 20, d.y + 60, 'Viper');
-  spawnEnemy(world.combat, d.x + 90, d.y + 30, 'Enforcer');
+  p.weapon = 'smg';
+  spawnEnemy(world.combat, d.x - 60, d.y - 40, 'Bruiser');
+  spawnEnemy(world.combat, d.x + 40, d.y - 70, 'Enforcer');
+  spawnEnemy(world.combat, d.x - 20, d.y + 60, 'Enforcer');
+  spawnEnemy(world.combat, d.x + 90, d.y + 30, 'Viper');
+  spawnEnemy(world.combat, d.x - 110, d.y - 10, 'Viper');
+  spawnEnemy(world.combat, d.x + 10, d.y - 110, 'Viper');
   spawnPickup(world.combat, d.x - 140, d.y + 140, 'ammo', 24);
   seedStreet(world, rng, d.x, d.y, 3, 2);
-  setMission(world, 3, 1);
-  world.wanted.level = 1;
-  world.marker = { x: d.x, y: d.y, color: '#e63229', label: 'DOCKSIDE DEAL' };
-  world.dialogue = 'RICO: Four Vipers between you and the case. Shoot first, Daz.';
+  setMission(world, 7, 1);
+  world.wanted.level = 4;
+  world.marker = { x: d.x, y: d.y, color: '#e63229', label: 'HARBOR HEIST' };
+  world.dialogue = 'MARA: The gold is right there, Daz. Six guards, one Bruiser — take them all.';
   world.dialogueTimer = 99;
   return { time: 1.8 };
 }

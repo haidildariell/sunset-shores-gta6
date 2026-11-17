@@ -35,6 +35,14 @@ export function createRandom(seed) {
       const u = (this.next() + this.next() + this.next()) / 3;
       return min + u * (max - min);
     },
+    // Box-Muller bell curve around a mean: spray, spread and wobble that
+    // cluster instead of scattering flat.
+    normal(mean, sd) {
+      const u1 = Math.max(this.next(), 1e-9);
+      const u2 = this.next();
+      const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(Math.PI * 2 * u2);
+      return mean + z * sd;
+    },
     // Fisher-Yates on a copy: the same seed shuffles the same way.
     shuffle(list) {
       const out = [...list];
@@ -64,4 +72,14 @@ export function hash2(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+// FNV-1a hash of a string into a seed: ?seed=palmera replays one city.
+export function seedFromString(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }

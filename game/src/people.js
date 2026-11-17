@@ -7,11 +7,13 @@ import { clampToWorld, collideSolids, nearestRoad, randomBeachPoint } from './ci
 
 export function makePedestrian(rng, x, y) {
   // Roles give the street life: joggers run the beach, tourists stand and
-  // stare at the sea, everyone else strolls the sidewalks.
+  // stare at the sea, vendors hold a spot by the Sunset Bar, everyone else
+  // strolls the sidewalks.
   const role = rng.weightedPick([
     { value: 'stroller', weight: 6 },
     { value: 'jogger', weight: 2 },
     { value: 'tourist', weight: 2 },
+    { value: 'vendor', weight: 1 },
   ]);
   const spot = role === 'jogger' ? randomBeachPoint(null, rng) : null;
   return {
@@ -71,13 +73,24 @@ function pickStrollTarget(city, rng, ped) {
   };
 }
 
-export function updatePedestrian(city, rng, ped, dt, danger) {
+export function updatePedestrian(city, rng, ped, dt, danger, policeCars) {
   if (ped.dead) return;
   ped.walkPhase += dt * (ped.role === 'jogger' ? 14 : 9);
   // Panic: run away from the danger point.
   if (danger && Math.hypot(ped.x - danger.x, ped.y - danger.y) < 320) {
     ped.flee = 2.5;
     ped.panicFrom = danger;
+  }
+  // A screaming cruiser sends the sidewalk scattering too.
+  if (policeCars) {
+    for (const c of policeCars) {
+      if (c.dead) continue;
+      if (Math.hypot(ped.x - c.x, ped.y - c.y) < 260 && Math.abs(c.speed) > 120) {
+        ped.flee = 2;
+        ped.panicFrom = { x: c.x, y: c.y };
+        break;
+      }
+    }
   }
   if (ped.flee > 0) {
     ped.flee -= dt;
@@ -86,13 +99,21 @@ export function updatePedestrian(city, rng, ped, dt, danger) {
     ped.x += Math.cos(away) * 150 * dt;
     ped.y += Math.sin(away) * 150 * dt;
     ped.scared = true;
-  } else if (ped.role === 'tourist' && ped.standTimer > 0) {
-    // Tourists stand on the sand, face the sea, then wander on.
+  } else if (ped.role === 'tourist' || ped.role === 'vendor') {
+    // Tourists stand on the sand, face the sea, then wander on. Vendors
+    // hold their spot by the Sunset Bar and watch the street instead.
     ped.standTimer -= dt;
     ped.scared = false;
     ped.angle += (Math.PI / 2 - ped.angle) * Math.min(1, dt * 2);
     if (ped.standTimer <= 0) {
-      ped.target = randomBeachPoint(city, rng);
+      if (ped.role === 'vendor') {
+        ped.target = {
+          x: city.places.beachBar.x + rng.range(-90, 90),
+          y: city.places.beachBar.y + rng.range(-50, 50),
+        };
+      } else {
+        ped.target = randomBeachPoint(city, rng);
+      }
       ped.standTimer = rng.range(4, 10);
     }
   } else if (ped.role === 'jogger') {
@@ -134,10 +155,13 @@ export function updateOfficer(city, officer, player, dt) {
   const dx = player.x - officer.x;
   const dy = player.y - officer.y;
   const d = Math.hypot(dx, dy);
+  // Sprint burst when the officer is almost on the player: the last few
+  // metres are the dangerous ones.
+  const spd = officer.speed * (d < 150 ? 1.12 : 1);
   if (d > 4) {
     officer.angle = Math.atan2(dy, dx);
-    officer.x += (dx / d) * officer.speed * dt;
-    officer.y += (dy / d) * officer.speed * dt;
+    officer.x += (dx / d) * spd * dt;
+    officer.y += (dy / d) * spd * dt;
   }
   collideSolids(city, officer, 12);
   clampToWorld(officer, 24);

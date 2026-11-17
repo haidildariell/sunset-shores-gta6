@@ -19,6 +19,7 @@ export function createWanted() {
     officerTimer: 0,
     sirenOn: false,
     roadblockUp: false, // a roadblock is standing while the heat is 4+
+    roadblockTimer: 0, // seconds until a smashed roadblock is rebuilt
   };
 }
 
@@ -49,12 +50,12 @@ export function spawnPoliceCar(rng, city, near) {
   return car;
 }
 
-function steerToward(car, tx, ty, dt) {
+function steerToward(car, tx, ty, gain = 2.4) {
   const want = Math.atan2(ty - car.y, tx - car.x);
   let diff = want - car.angle;
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
-  return Math.max(-1, Math.min(1, diff * 2.4));
+  return Math.max(-1, Math.min(1, diff * gain));
 }
 
 // At four stars the PD blocks the road ahead of the player: two cruisers
@@ -140,23 +141,49 @@ export function updateWanted(city, rng, wanted, dt, player, playerCar, events) {
   // Four stars and up: one roadblock ahead of the player, rebuilt when the
   // player smashes through it or the heat falls back.
   if (wanted.level >= 4 && !wanted.roadblockUp) {
-    const block = spawnRoadblock(rng, city, player);
-    wanted.policeCars.push(...block);
-    wanted.roadblockUp = true;
-    events.push({ type: 'roadblock' });
+    wanted.roadblockTimer -= dt;
+    if (wanted.roadblockTimer <= 0) {
+      const block = spawnRoadblock(rng, city, player);
+      wanted.policeCars.push(...block);
+      wanted.roadblockUp = true;
+      wanted.roadblockTimer = 14;
+      events.push({ type: 'roadblock' });
+    }
   }
-  if (wanted.level < 4) wanted.roadblockUp = false;
+  if (wanted.level < 4) {
+    wanted.roadblockUp = false;
+    wanted.roadblockTimer = 0;
+  }
+  // Smashed through? The block is gone — the PD rebuilds it after a pause.
+  if (wanted.roadblockUp && !wanted.policeCars.some((c) => c.roadblock && !c.dead)) {
+    wanted.roadblockUp = false;
+    wanted.roadblockTimer = 12;
+  }
+  // A wrecked police car is towed away at once (roadblock cars included).
+  for (const car of wanted.policeCars) {
+    if (car.health <= 0 && !car.dead) car.dead = true;
+  }
 
   // Pursuit steering. Roadblock cars hold their ground instead of chasing.
   for (const car of wanted.policeCars) {
     if (car.dead) continue;
     if (car.roadblock) continue;
+    // The pack gets faster and sharper with the heat: cruisers at five
+    // stars close in noticeably quicker than the patrol at one star.
+    car.speedFactor = 1 + wanted.level * 0.04;
+    const dist = Math.hypot(px - car.x, py - car.y);
     // Predict where the player will be, and aim a little past them to ram.
     const lead = 0.45;
-    const tx = px + (playerCar ? playerCar.vx * lead : 0);
-    const ty = py + (playerCar ? playerCar.vy * lead : 0);
-    const steer = steerToward(car, tx, ty, dt);
-    const dist = Math.hypot(px - car.x, py - car.y);
+    let tx = px + (playerCar ? playerCar.vx * lead : 0);
+    let ty = py + (playerCar ? playerCar.vy * lead : 0);
+    if (dist < 170 && playerCar) {
+      // PIT: swing for the rear quarter instead of dead centre, to spin
+      // the player's car instead of just shoving it straight ahead.
+      const pa = playerCar.angle;
+      tx = px - Math.cos(pa) * 46 + Math.cos(pa + Math.PI / 2) * 30;
+      ty = py - Math.sin(pa) * 46 + Math.sin(pa + Math.PI / 2) * 30;
+    }
+    const steer = steerToward(car, tx, ty, 2.4 + wanted.level * 0.18);
     const throttle = dist > 60 ? 1 : 0.4;
     driveCar(city, car, throttle, steer, dt);
   }

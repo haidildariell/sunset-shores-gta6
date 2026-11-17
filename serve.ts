@@ -27,6 +27,7 @@ const MIME = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
+  '.avif': 'image/avif',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
@@ -62,12 +63,18 @@ createServer((request, response) => {
     response.writeHead(404).end('not found');
     return;
   }
-  response.writeHead(200, {
+  const headers = {
     'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
     'content-length': size,
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
-  });
+  };
+  // HEAD answers with headers only — handy for smoke-checking a staged shot.
+  if (request.method === 'HEAD') {
+    response.writeHead(200, headers).end();
+    return;
+  }
+  response.writeHead(200, headers);
   createReadStream(file).pipe(response);
 }).listen(port, host, () => {
   console.log(`game/ is on http://${host}:${port}`);

@@ -1,7 +1,7 @@
-// Combat: fists, two guns (pistol and a Q-switched shotgun), bullets, armed
-// enemies, and the pickups (health, ammo, cash) the city leaves around.
-// Enemies only exist inside missions; the street itself stays a place to
-// walk, not a warzone.
+// Combat: fists, three guns (pistol, a Q-cycled shotgun and a rapid SMG),
+// bullets, armed enemies, and the pickups (health, ammo, cash) the city
+// leaves around. Enemies only exist inside missions; the street itself
+// stays a place to walk, not a warzone.
 
 import { PLAYER, WEAPONS } from './config.js';
 
@@ -23,6 +23,8 @@ const ENEMY_KINDS = {
   Guard: { health: 70, speed: 150, damage: 9, fireDelay: 0.9 },
   Viper: { health: 90, speed: 165, damage: 10, fireDelay: 0.8 },
   Enforcer: { health: 130, speed: 175, damage: 12, fireDelay: 0.6 },
+  // Bruiser: the harbor crew's heavy in the finale — slow, tanky, hard-hitting.
+  Bruiser: { health: 210, speed: 138, damage: 14, fireDelay: 0.75 },
 };
 
 export function spawnEnemy(combat, x, y, name) {
@@ -38,6 +40,7 @@ export function spawnEnemy(combat, x, y, name) {
     fireDelay: kind.fireDelay,
     state: 'guard',
     shootTimer: 1 + Math.random() * 1.5,
+    shotsFired: 0, // burst counter: four shots, then a reload pause
     strafeDir: Math.random() < 0.5 ? 1 : -1,
     name: name ?? 'Rival',
     dead: false,
@@ -118,6 +121,10 @@ export function tryShoot(combat, player, audio) {
   if (weapon.pellets > 1) {
     fireSpread(combat, player.x, player.y, player.angle, true, weapon);
     audio.shotgun();
+  } else if (weapon.name === 'SMG') {
+    const jitter = (Math.random() - 0.5) * weapon.spread * 2;
+    fireBullet(combat, player.x, player.y, player.angle + jitter, true, weapon.damage);
+    audio.smg();
   } else {
     fireBullet(combat, player.x, player.y, player.angle, true, weapon.damage);
     audio.gunshot();
@@ -125,9 +132,12 @@ export function tryShoot(combat, player, audio) {
   return true;
 }
 
-// Q switches pistol <-> shotgun; the HUD shows which is in hand.
+// Q cycles pistol -> shotgun -> SMG -> pistol; the HUD shows which is in hand.
+const WEAPON_ORDER = ['pistol', 'shotgun', 'smg'];
+
 export function switchWeapon(player, audio) {
-  player.weapon = player.weapon === 'shotgun' ? 'pistol' : 'shotgun';
+  const i = WEAPON_ORDER.indexOf(player.weapon ?? 'pistol');
+  player.weapon = WEAPON_ORDER[(i + 1) % WEAPON_ORDER.length];
   if (audio) audio.reload();
   return player.weapon;
 }
@@ -210,7 +220,13 @@ export function updateEnemies(city, combat, dt, player, onPlayerHit) {
       e.shootTimer -= dt;
       if (e.shootTimer <= 0 && d < 380) {
         fireBullet(combat, e.x, e.y, e.angle + (Math.random() - 0.5) * 0.14, false, e.damage ?? 9);
+        e.shotsFired = (e.shotsFired ?? 0) + 1;
         e.shootTimer = (e.fireDelay ?? 0.9) + Math.random() * 0.7;
+        // Burst discipline: four shots, then a reload pause the player can use.
+        if (e.shotsFired >= 4) {
+          e.shotsFired = 0;
+          e.shootTimer += 1.1;
+        }
       }
     }
     // Stay out of buildings: revert to the pre-move position on overlap.

@@ -131,8 +131,13 @@ export function drawHud(ctx, world, screen, time) {
     ctx.fillRect(120, 76, 104 * Math.max(0, p.car.health / 100), 8);
   }
 
-  // Top-right: wanted stars + clock, under the minimap.
+  // Top-right: wanted stars + heat word + clock, under the minimap.
   drawStars(ctx, world.wanted.level, w - 250, HUD.minimapMargin + HUD.minimapSize + 34, time);
+  const HEAT_NAMES = ['CLEAN', 'COOL', 'WARM', 'HOT', 'BURNING', 'MAX HEAT'];
+  ctx.fillStyle = world.wanted.level >= 4 ? '#ff7a5e' : 'rgba(255,255,255,0.75)';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(HEAT_NAMES[world.wanted.level] ?? '', w - 250, HUD.minimapMargin + HUD.minimapSize + 56);
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 14px sans-serif';
   ctx.textAlign = 'right';
@@ -274,7 +279,7 @@ export function drawHud(ctx, world, screen, time) {
   ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.font = '12px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(p.car ? 'WASD drive  •  Shift nitro  •  E exit car  •  H horn  •  C radio  •  M mute  •  Esc pause' : 'WASD move  •  Shift run  •  E enter car  •  Click shoot  •  Q weapon  •  F punch  •  C radio  •  M mute  •  Esc pause', 14, h - 14);
+  ctx.fillText(p.car ? 'WASD drive  •  Shift nitro  •  Space handbrake  •  E exit car  •  H horn  •  C radio  •  M mute  •  Esc pause' : 'WASD move  •  Shift run  •  E enter car  •  Click shoot  •  Q weapon  •  F punch  •  C radio  •  M mute  •  Esc pause', 14, h - 14);
 
   // Low-health vignette: the screen bleeds red at the edges when hurt.
   if (p.health < 35 && p.health > 0) {
@@ -335,12 +340,13 @@ export function drawTitleScreen(ctx, world, best) {
   ctx.fillText('An open-world crime story in Palmera Bay', w / 2, h * 0.32 + 44);
   ctx.fillStyle = '#ffd23c';
   ctx.font = 'bold 15px sans-serif';
-  ctx.fillText('DAZ COLE  •  MARA QUINN  •  SEVEN JOBS  •  ONE SUNSET', w / 2, h * 0.32 + 72);
+  ctx.fillText('DAZ COLE  •  MARA QUINN  •  EIGHT JOBS  •  ONE SUNSET', w / 2, h * 0.32 + 72);
 
   const lines = [
     'WASD / Arrows — move & drive      Shift — run / nitro in a car',
     'E — steal / enter a car           H — horn        C — radio',
-    'Mouse — aim & shoot               Q — pistol / shotgun     F — punch',
+    'Mouse — aim & shoot               Q — pistol / shotgun / SMG     F — punch',
+    'Space — handbrake while driving: slide the tail, take the corner sideways',
     'Steal cars, run jobs for Mara, outrun the Palmera PD.',
     'Missions pay cash. Wanted stars bring the police — and roadblocks at four.',
     'Lucky Spray clears your wanted level for $200. Pit Stop repairs your car for $100.',

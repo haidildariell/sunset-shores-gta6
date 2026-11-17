@@ -205,6 +205,15 @@ export function createAudio() {
       [440, 440, 349].forEach((f, i) => window.setTimeout(() => blip(f, 0.25, 'square', 0.14), i * 160));
     },
     horn() { blip(370, 0.18, 'square', 0.1, 370); },
+    smg() { noiseBurst(0.09, 0.4, 3200); blip(190, 0.05, 'square', 0.14, 90); },
+    // Vault alarm: two-tone wail when the Harbor Heist gold is grabbed.
+    alarm() {
+      blip(740, 0.22, 'square', 0.12, 740);
+      window.setTimeout(() => blip(520, 0.22, 'square', 0.12, 520), 240);
+      window.setTimeout(() => blip(740, 0.22, 'square', 0.12, 740), 480);
+    },
+    // Tyre screech for a handbrake slide.
+    skid() { noiseBurst(0.35, 0.18, 1800); },
     // A traffic horn from down the street: two-tone, quieter than the player's.
     honk() { blip(330, 0.16, 'square', 0.05, 330); window.setTimeout(() => blip(415, 0.16, 'square', 0.05), 140); },
     click() { blip(660, 0.05, 'sine', 0.12); },

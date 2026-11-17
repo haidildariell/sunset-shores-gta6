@@ -1,7 +1,7 @@
 // Missions and the story of Sunset Shores. Dario "Daz" Cole, a delivery
 // driver who owes the wrong people money, gets pulled into Mara Quinn's
-// crew. Seven jobs, each a chain of small steps the runner checks every
-// frame: reach a place, steal a car, survive the heat, clear the guards.
+// crew. Eight jobs now: the story ends with the Harbor Heist, a gold
+// shipment guarded by Bruisers at the docks and a four-star run to the pier.
 
 import { MISSION_REWARDS } from './config.js';
 import { spawnEnemy, spawnPickup } from './combat.js';
@@ -151,6 +151,46 @@ export const MISSIONS = [
       },
     ],
   },
+  {
+    id: 'harbor-heist',
+    title: 'The Harbor Heist',
+    giver: 'Mara Quinn',
+    intro: [
+      'MARA: The big one, Daz. A gold shipment lands at the docks tonight.',
+      'MARA: The harbor crew hired Bruisers — heavy, angry, and armed.',
+      'MARA: Clear the vault, grab the gold, and lose four stars at the pier.',
+      'MARA: Do this and we own Palmera Bay. All of it.',
+    ],
+    reward: MISSION_REWARDS[7],
+    steps: [
+      { type: 'goto', place: 'docks', radius: 150, text: 'Reach the Palmera Docks' },
+      {
+        type: 'killAll', text: 'Clear the harbor guards (6)',
+        start: (ctx) => {
+          const d = ctx.city.places.docks;
+          spawnEnemy(ctx.combat, d.x - 60, d.y - 40, 'Bruiser');
+          spawnEnemy(ctx.combat, d.x + 40, d.y - 70, 'Enforcer');
+          spawnEnemy(ctx.combat, d.x - 20, d.y + 60, 'Enforcer');
+          spawnEnemy(ctx.combat, d.x + 90, d.y + 30, 'Viper');
+          spawnEnemy(ctx.combat, d.x - 110, d.y - 10, 'Viper');
+          spawnEnemy(ctx.combat, d.x + 10, d.y - 110, 'Viper');
+          spawnPickup(ctx.combat, d.x - 120, d.y + 100, 'health', 40);
+          spawnPickup(ctx.combat, d.x + 130, d.y - 110, 'ammo', 24);
+          spawnPickup(ctx.combat, d.x + 60, d.y + 120, 'ammo', 24);
+          ctx.audio.alarm();
+        },
+      },
+      {
+        type: 'pickup', place: 'docks', radius: 44, text: 'Grab the gold', heat: 4,
+        start: (ctx) => { ctx.say('MARA: Gold secured! Four stars — run for the pier!'); },
+      },
+      {
+        type: 'timed', place: 'pier', radius: 130, seconds: 110,
+        text: 'Escape to the Palmera Pier — 110 seconds',
+        start: (ctx) => { ctx.say('MARA: Boat is at the pier. Drive like the sunset depends on it!'); },
+      },
+    ],
+  },
 ];
 
 // --- Runner ---------------------------------------------------------------
@@ -292,6 +332,7 @@ export function makeCourierJob(rng, city) {
     city.places.docks, city.places.bank, city.places.beachBar,
     city.places.motel, city.places.hospital, city.places.chopShop,
     city.places.lighthouse, city.places.stadium, city.places.pier,
+    city.places.marina,
   ];
   const a = spots[rng.int(0, spots.length - 1)];
   let b = spots[rng.int(0, spots.length - 1)];
@@ -299,7 +340,7 @@ export function makeCourierJob(rng, city) {
   return {
     pickup: { x: a.x + rng.range(-40, 40), y: a.y + rng.range(-40, 40), name: a.name },
     dropoff: { x: b.x + rng.range(-40, 40), y: b.y + rng.range(-40, 40), name: b.name },
-    pay: 150 + rng.int(0, 3) * 50,
+    pay: 150 + rng.int(0, 4) * 50,
     stage: 'pickup',
     active: true,
   };

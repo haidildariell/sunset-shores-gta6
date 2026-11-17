@@ -29,6 +29,7 @@ export const PLACES = {
   stadium: { x: 3100, y: 560, name: 'Palmera Bowl' },
   pitStop: { x: 2320, y: 2050, name: 'Pit Stop Garage' },
   pier: { x: PIER_X, y: 2560, name: 'Palmera Pier' },
+  marina: { x: 2900, y: 2500, name: 'Palmera Marina' },
 };
 
 const ROOF_COLORS = [PALETTE.roofA, PALETTE.roofB, PALETTE.roofC, PALETTE.roofD];
@@ -132,6 +133,18 @@ export function buildCity(rng) {
     });
   }
 
+  // Yachts moored at the marina, and the park fountain: fixed per seed.
+  const boats = [];
+  for (let i = 0; i < 3; i += 1) {
+    boats.push({
+      x: 2720 + i * 130,
+      y: WATER_TOP + 150 + (i % 2) * 70,
+      angle: rng.range(-0.2, 0.2),
+      len: 110 + i * 14,
+    });
+  }
+  const fountains = [{ x: PLACES.park.x, y: PLACES.park.y, r: 34 }];
+
   const city = {
     roadsV,
     roadsH,
@@ -140,6 +153,8 @@ export function buildCity(rng) {
     containers,
     parkingSpots,
     stashes,
+    boats,
+    fountains,
     places: PLACES,
   };
 
@@ -154,6 +169,11 @@ export function isWater(city, x, y) {
 
 export function isSand(city, x, y) {
   return y > SAND_TOP && y <= WATER_TOP + 60;
+}
+
+// The marina basin: moored yachts, walkable docks, no driving into the sea.
+export function isMarina(city, x, y) {
+  return x > 2620 && x < 3080 && y > WATER_TOP + 40 && y < WORLD_H - 40;
 }
 
 export function isDock(city, x, y) {

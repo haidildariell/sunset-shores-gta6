@@ -149,7 +149,7 @@ function paintGround(city) {
     }
   }
 
-  // Park: green lawn, paths, pond.
+  // Park: green lawn, paths, pond — and the fountain at its heart.
   const park = city.places.park;
   g.fillStyle = PALETTE.grassDark;
   g.fillRect(park.x - 190, park.y - 190, 380, 380);
@@ -160,6 +160,46 @@ function paintGround(city) {
   g.beginPath();
   g.arc(park.x + 90, park.y + 90, 42, 0, Math.PI * 2);
   g.fill();
+  // Fountain: stone rim, blue water, a pale jet in the middle.
+  g.fillStyle = '#8d8578';
+  g.beginPath();
+  g.arc(park.x, park.y, 34, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#5fa8c9';
+  g.beginPath();
+  g.arc(park.x, park.y, 27, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#cfe9f5';
+  g.beginPath();
+  g.arc(park.x, park.y, 9, 0, Math.PI * 2);
+  g.fill();
+
+  // Marina: wooden docks reaching into the bay, yachts moored alongside.
+  g.fillStyle = '#7a5a38';
+  for (const dx of [2720, 2850, 2980]) {
+    g.fillRect(dx, WATER_TOP + 40, 34, 220);
+    g.fillStyle = '#8a6a44';
+    for (let y = WATER_TOP + 40; y < WATER_TOP + 260; y += 22) g.fillRect(dx, y, 34, 14);
+    g.fillStyle = '#7a5a38';
+  }
+  for (const boat of city.boats) {
+    g.save();
+    g.translate(boat.x, boat.y);
+    g.rotate(boat.angle);
+    g.fillStyle = 'rgba(0,0,0,0.25)';
+    g.beginPath();
+    g.ellipse(3, 5, boat.len / 2, 16, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#f5efe0';
+    g.beginPath();
+    g.ellipse(0, 0, boat.len / 2, 14, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#2e6b8a';
+    g.fillRect(-boat.len / 4, -6, boat.len / 2, 12);
+    g.fillStyle = '#c23b2e';
+    g.fillRect(-4, -26, 8, 22);
+    g.restore();
+  }
 
   // Dock ground: concrete apron.
   g.fillStyle = '#8d8578';
@@ -284,13 +324,22 @@ export function createRenderer(canvas, city) {
       ctx.textAlign = 'center';
       ctx.fillText('TAXI', 0, 3);
     }
-    // Windshield + roof + rear window.
+    // Windshield + roof + rear window. Convertibles run open-top: no roof
+    // panel, just the cabin and two headrests catching the sunset.
     ctx.fillStyle = 'rgba(20,28,38,0.85)';
     roundRect(ctx, t.len / 2 - 20, -t.wid / 2 + 5, 12, t.wid - 10, 4);
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    roundRect(ctx, -8, -t.wid / 2 + 6, 18, t.wid - 12, 5);
-    ctx.fill();
+    if (t.name === 'Convertible') {
+      ctx.fillStyle = 'rgba(20,28,38,0.85)';
+      ctx.fillRect(-14, -t.wid / 2 + 6, 26, t.wid - 12);
+      ctx.fillStyle = '#2e2e33';
+      ctx.fillRect(-12, -t.wid / 2 + 7, 6, 5);
+      ctx.fillRect(-12, t.wid / 2 - 12, 6, 5);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      roundRect(ctx, -8, -t.wid / 2 + 6, 18, t.wid - 12, 5);
+      ctx.fill();
+    }
     ctx.fillStyle = 'rgba(20,28,38,0.7)';
     roundRect(ctx, -t.len / 2 + 6, -t.wid / 2 + 5, 10, t.wid - 10, 4);
     ctx.fill();
@@ -503,6 +552,15 @@ export function createRenderer(canvas, city) {
 
       // Pickups, cars, people, bullets, particles — roughly back to front.
       for (const p of world.combat.pickups) drawPickup(p, time);
+      // Sun glints on the water: cheap sparkle, no extra assets.
+      if (darknessAt(world.clock) < 0.5) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        for (let i = 0; i < 24; i += 1) {
+          const sx = ((i * 613 + Math.floor(time * 30 + i * 7)) % 3400) + 100;
+          const sy = WATER_TOP + 90 + ((i * 197) % 160);
+          ctx.fillRect(sx, sy + Math.sin(time * 2 + i) * 3, 5, 2);
+        }
+      }
       const cars = [...world.traffic, ...world.wanted.policeCars];
       if (player.car) cars.push(player.car);
       for (const car of world.parkedCars) cars.push(car);

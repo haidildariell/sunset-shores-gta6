@@ -6,17 +6,17 @@
 // stages that scene instead of running the loop, paints it twice and sets
 // window.__shotReady for a screenshot.
 
-import { CAR, PITSTOP_COST, PLAYER, STEP, WORLD_H, WORLD_W } from './config.js';
-import { createRandom } from './random.js';
+import { CAR, CAR_TYPES, PITSTOP_COST, PLAYER, RADIO_STATIONS, STEP, WORLD_H, WORLD_W } from './config.js';
+import { createRandom, seedFromString } from './random.js';
 import { buildCity, clampToWorld, collideSolids, isWater, randomRoadPoint } from './city.js';
 import { createAudio } from './audio.js';
-import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HORN, ACTION_INTERACT, ACTION_MUTE, ACTION_PAUSE, ACTION_RADIO, ACTION_RESTART, ACTION_RUN, ACTION_WEAPON, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_ENTER, ACTION_HANDBRAKE, ACTION_HORN, ACTION_INTERACT, ACTION_MUTE, ACTION_PAUSE, ACTION_RADIO, ACTION_RESTART, ACTION_RUN, ACTION_WEAPON, createInput } from './input.js';
 import { createRenderer } from './render.js';
 import { drawEndScreen, drawHud, drawPausedScreen, drawTitleScreen } from './hud.js';
 import { addHeat, clearWanted, createWanted, policeRamDamage, updateWanted } from './police.js';
 import { collideCars, driveCar, isStealable, makeCar, repairCar } from './vehicles.js';
 import { makePedestrian, updatePedestrian } from './people.js';
-import { separateTraffic, spawnTrafficCar, updateTrafficCar } from './traffic.js';
+import { separateTraffic, spawnTrafficCar, updateTrafficCar, isRushHour, rushHourBonus } from './traffic.js';
 import { createCombat, switchWeapon, tryPunch, tryShoot, updateBullets, updateEnemies, updateParticles, updatePickups } from './combat.js';
 import { MISSIONS, createMissionState, currentMission, currentStep, makeCourierJob, retryMission, startMission, updateMission } from './missions.js';
 import { loadSave, writeSave } from './save.js';
@@ -30,7 +30,10 @@ const PARKED_TARGET = 9;
 const params = new URLSearchParams(window.location.search);
 const shot = params.get('shot');
 const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
-const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
+const seedRaw = params.get('seed');
+const seed = Number.isInteger(seedParam)
+  ? seedParam
+  : seedRaw ? seedFromString(seedRaw) : Math.floor(Math.random() * 4294967296);
 
 const canvas = document.getElementById('game');
 const status = document.getElementById('status');
@@ -83,6 +86,7 @@ function createWorld() {
     courier: null,
     courierTimer: 40,
     courierDone: save ? save.courierDone : 0,
+    carsStolen: save ? save.carsStolen : 0,
     radioStation: save ? save.radioStation : 0,
     radioName: 'SUNSET FM',
     clock: 17 * 60 + 20, // golden hour
@@ -157,6 +161,7 @@ function enterCar(car) {
   }
   car.driver = 'player';
   car.stolen = true;
+  world.carsStolen = (world.carsStolen ?? 0) + 1;
   player.car = car;
   player.x = car.x;
   player.y = car.y;
@@ -247,8 +252,10 @@ function missionCtx() {
 }
 
 function spawnNearbyTraffic() {
-  while (world.traffic.length < TRAFFIC_TARGET) {
-    const car = spawnTrafficCar(rng, city, player, 1100);
+  // Rush hour packs the streets: the target grows by six after 17:00.
+  const target = TRAFFIC_TARGET + rushHourBonus(world.clock);
+  while (world.traffic.length < target) {
+    const car = spawnTrafficCar(rng, city, player, 1100, isRushHour(world.clock));
     if (Math.hypot(car.x - player.x, car.y - player.y) > 320) world.traffic.push(car);
     else break;
   }
@@ -264,7 +271,7 @@ function spawnNearbyParked() {
     guard += 1;
     const spot = randomRoadPoint(city, rng, player, 1000);
     if (Math.hypot(spot.x - player.x, spot.y - player.y) < 260) continue;
-    const car = makeCar(rng.int(0, 7), spot.x, spot.y, spot.vertical ? Math.PI / 2 : 0, { driver: null });
+    const car = makeCar(rng.int(0, CAR_TYPES.length - 1), spot.x, spot.y, spot.vertical ? Math.PI / 2 : 0, { driver: null });
     world.parkedCars.push(car);
   }
   world.parkedCars = world.parkedCars.filter((c) => {
@@ -328,7 +335,10 @@ function updatePlayerDriving(dt, input, actions) {
   const steer = input.moveX();
   const boosting = (actions & ACTION_RUN) !== 0 && car.nitro > 0 && throttle > 0;
   if (boosting && !car.boosting) audio.nitro();
-  const scraped = driveCar(city, car, throttle, steer, dt, { boost: boosting });
+  const handbrake = (actions & ACTION_HANDBRAKE) !== 0 && Math.abs(car.speed) > 120;
+  if (handbrake && !car.sliding) audio.skid();
+  car.sliding = handbrake;
+  const scraped = driveCar(city, car, throttle, steer, dt, { boost: boosting, handbrake });
   if (scraped) {
     audio.crash();
     renderer.addShake(4);
@@ -353,8 +363,8 @@ function updatePlayerDriving(dt, input, actions) {
       say('You hit a pedestrian! The cops are coming.');
     }
   }
-  // Ramming traffic: damage both, and the law notices.
-  for (const other of [...world.traffic, ...world.parkedCars]) {
+  // Ramming traffic — or a roadblock cruiser: damage both, and the law notices.
+  for (const other of [...world.traffic, ...world.parkedCars, ...world.wanted.policeCars]) {
     if (other === car || other.dead) continue;
     const impact = collideCars(car, other);
     if (impact > 260) {
@@ -501,7 +511,7 @@ function step(dt, input, actions) {
   const danger = world.combat.bullets.length > 0
     ? { x: world.combat.bullets[0].x, y: world.combat.bullets[0].y }
     : null;
-  for (const ped of world.peds) updatePedestrian(city, rng, ped, dt, danger);
+  for (const ped of world.peds) updatePedestrian(city, rng, ped, dt, danger, world.wanted.policeCars);
 
   // Wanted + police.
   updateWanted(city, rng, world.wanted, dt, player, player.car, world.events);
@@ -589,7 +599,7 @@ function runGame() {
     }
     if ((actions & ACTION_RADIO) !== 0 && screen === 'play') {
       world.radioName = audio.cycleRadio();
-      world.radioStation = (world.radioStation + 1) % 3;
+      world.radioStation = (world.radioStation + 1) % RADIO_STATIONS.length;
       say(`Radio: ${world.radioName}.`);
       writeSave(world);
     }
